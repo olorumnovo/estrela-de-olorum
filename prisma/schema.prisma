@@ -1,0 +1,1287 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  PENDING
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum ScheduleType {
+  EVENTO
+  CULTO
+  SESSAO
+  GIRA
+  REUNIAO
+  OBRIGACAO
+  TRABALHO
+  CURSO
+  ATENDIMENTO
+  CONSULTA
+}
+
+enum ScheduleStatus {
+  AGENDADO
+  EM_ANDAMENTO
+  FINALIZADO
+  CANCELADO
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELED
+}
+
+enum PaymentMethod {
+  PIX
+  DINHEIRO
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  BOLETO
+  TRANSFERENCIA
+}
+
+enum SpiritualCareStatus {
+  AGENDADO
+  EM_ATENDIMENTO
+  FINALIZADO
+  CANCELADO
+}
+
+enum SaleStatus {
+  OPEN
+  PAID
+  CANCELED
+}
+
+enum BankAccountType {
+  CORRENTE
+  POUPANCA
+  PAGAMENTO
+  INVESTIMENTO
+}
+
+model Temple {
+  id String @id @default(uuid())
+
+  nome String
+  slug String @unique
+
+  cnpj     String?
+  email    String?
+  telefone String?
+  whatsapp String?
+  logo     String?
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users                       User[]
+  roles                       Role[]
+  permissions                 Permission[]
+  userSessions                UserSession[]
+  loginLogs                   LoginLog[]
+  userAuditLogs               UserAuditLog[]
+  members                     Member[]
+  schedules                   Schedule[]
+  financialCategories         FinancialCategory[]
+  financialSuppliers          FinancialSupplier[]
+  financialBankAccounts       FinancialBankAccount[]
+  cashRegisters               CashRegister[]
+  cashSessions                CashSession[]
+  cashLedgerEntries           CashLedgerEntry[]
+  financialTransactions       FinancialTransaction[]
+  products                    Product[]
+  sales                       Sale[]
+  spiritualCareRecords        SpiritualCare[]
+  spiritualCareAttachments    SpiritualCareAttachment[]
+  visitorAttendances          VisitorAttendance[]
+  memberDistributions         MemberDistribution[]
+  notifications               Notification[]
+  settings                    Setting[]
+  auditLogs                   AuditLog[]
+  monthlyFees                 MonthlyFee[]
+  professions                 Profession[]
+  religiousFunctions          ReligiousFunction[]
+  contactTypes                ContactType[]
+  spiritualEntities           SpiritualEntity[]
+  hierarchies                 Hierarchy[]
+  memberClassifications       MemberClassification[]
+  whatsappConversations       WhatsappConversation[]
+  whatsappMessages            WhatsappMessage[]
+  whatsappChargeNotifications WhatsappChargeNotification[]
+}
+
+model User {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome  String
+  email String @unique
+  senha String
+
+  telefone    String?
+  foto        String?
+  cpf         String?
+  cargo       String?
+  observacoes String?
+
+  status UserStatus @default(ACTIVE)
+
+  ultimoLogin     DateTime?
+  senhaAlteradaEm DateTime?
+  bloqueadoEm     DateTime?
+  bloqueadoMotivo String?
+  deveTrocarSenha Boolean   @default(false)
+  tentativasLogin Int       @default(0)
+  ultimoIp        String?
+  ultimoUserAgent String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  userRoles           UserRole[]
+  userPermissions     UserPermission[]
+  sessions            UserSession[]
+  loginLogs           LoginLog[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogsAsTarget   UserAuditLog[]       @relation("UserAuditTarget")
+  auditLogsAsActor    UserAuditLog[]       @relation("UserAuditActor")
+  auditLogs           AuditLog[]
+
+  @@index([templeId])
+  @@index([cpf])
+}
+
+model Role {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome      String
+  descricao String?
+  ativo     Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@unique([templeId, nome])
+}
+
+model Permission {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  chave     String
+  codigo    String?
+  nome      String?
+  descricao String?
+  modulo    String?
+  acao      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@unique([templeId, chave])
+  @@unique([templeId, codigo])
+  @@index([templeId])
+  @@index([modulo])
+}
+
+model UserRole {
+  id String @id @default(uuid())
+
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  id String @id @default(uuid())
+
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model UserPermission {
+  id String @id @default(uuid())
+
+  userId       String
+  permissionId String
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  allowed Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([permissionId])
+}
+
+model UserSession {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token     String    @unique
+  ip        String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([templeId])
+  @@index([userId])
+  @@index([token])
+}
+
+model LoginLog {
+  id String @id @default(uuid())
+
+  templeId String?
+  temple   Temple? @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  email     String
+  success   Boolean
+  ip        String?
+  userAgent String?
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([templeId])
+  @@index([userId])
+  @@index([email])
+}
+
+model PasswordResetToken {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model UserAuditLog {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation("UserAuditTarget", fields: [userId], references: [id], onDelete: SetNull)
+
+  actorUserId String?
+  actorUser   User?   @relation("UserAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  acao          String
+  descricao     String?
+  valorAnterior Json?
+  valorNovo     Json?
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([templeId])
+  @@index([userId])
+  @@index([actorUserId])
+}
+
+model Profession {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome String
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members Member[]
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model ReligiousFunction {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome String
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members Member[]
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model ContactType {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome String
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members Member[]
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model SpiritualEntity {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome String
+
+  tipo String?
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberFatherEntity1 Member[] @relation("MemberFatherEntity1")
+  memberFatherEntity2 Member[] @relation("MemberFatherEntity2")
+  memberMotherEntity1 Member[] @relation("MemberMotherEntity1")
+  memberMotherEntity2 Member[] @relation("MemberMotherEntity2")
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model Hierarchy {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome String
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members     Member[]
+  memberLinks MemberHierarchy[]
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model MemberClassification {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome String
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members     Member[]
+  memberLinks MemberClassificationLink[]
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model Member {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome           String
+  nomeEspiritual String?
+
+  cpf String? @unique
+  rg  String?
+
+  nascimento     DateTime?
+  genero         Gender?
+  estadoCivil    String?
+  admissaoCentro DateTime?
+  saidaCentro    DateTime?
+
+  telefone String?
+  whatsapp String?
+  email    String?
+
+  cep         String?
+  endereco    String?
+  numero      String?
+  complemento String?
+  bairro      String?
+  cidade      String?
+  estado      String?
+
+  professionId String?
+  profession   Profession? @relation(fields: [professionId], references: [id], onDelete: SetNull)
+
+  fatherEntity1Id String?
+  fatherEntity1   SpiritualEntity? @relation("MemberFatherEntity1", fields: [fatherEntity1Id], references: [id], onDelete: SetNull)
+
+  fatherEntity2Id String?
+  fatherEntity2   SpiritualEntity? @relation("MemberFatherEntity2", fields: [fatherEntity2Id], references: [id], onDelete: SetNull)
+
+  motherEntity1Id String?
+  motherEntity1   SpiritualEntity? @relation("MemberMotherEntity1", fields: [motherEntity1Id], references: [id], onDelete: SetNull)
+
+  motherEntity2Id String?
+  motherEntity2   SpiritualEntity? @relation("MemberMotherEntity2", fields: [motherEntity2Id], references: [id], onDelete: SetNull)
+
+  contactTypeId String?
+  contactType   ContactType? @relation(fields: [contactTypeId], references: [id], onDelete: SetNull)
+
+  religiousFunctionId String?
+  religiousFunction   ReligiousFunction? @relation(fields: [religiousFunctionId], references: [id], onDelete: SetNull)
+
+  hierarchyId String?
+  hierarchy   Hierarchy? @relation(fields: [hierarchyId], references: [id], onDelete: SetNull)
+
+  classificationId String?
+  classification   MemberClassification? @relation(fields: [classificationId], references: [id], onDelete: SetNull)
+
+  funcao String?
+
+  foto String?
+
+  observacoes String?
+
+  status MemberStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  attachments           MemberAttachment[]
+  attendances           Attendance[]
+  monthlyFees           MonthlyFee[]
+  memberHierarchies     MemberHierarchy[]
+  memberClassifications MemberClassificationLink[]
+  spiritualCareRecords  SpiritualCare[]
+  sales                 Sale[]
+
+  @@unique([id, templeId])
+  @@index([templeId])
+  @@index([professionId])
+  @@index([fatherEntity1Id])
+  @@index([fatherEntity2Id])
+  @@index([motherEntity1Id])
+  @@index([motherEntity2Id])
+  @@index([contactTypeId])
+  @@index([religiousFunctionId])
+  @@index([hierarchyId])
+  @@index([classificationId])
+}
+
+model MemberHierarchy {
+  id String @id @default(uuid())
+
+  memberId    String
+  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  hierarchyId String
+  hierarchy   Hierarchy @relation(fields: [hierarchyId], references: [id], onDelete: Cascade)
+
+  order Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, hierarchyId])
+  @@index([memberId])
+  @@index([hierarchyId])
+  @@index([memberId, order])
+}
+
+model MemberClassificationLink {
+  id String @id @default(uuid())
+
+  memberId         String
+  member           Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  classificationId String
+  classification   MemberClassification @relation(fields: [classificationId], references: [id], onDelete: Cascade)
+
+  order Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, classificationId])
+  @@index([memberId])
+  @@index([classificationId])
+  @@index([memberId, order])
+}
+
+model MemberAttachment {
+  id String @id @default(uuid())
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  nome    String
+  arquivo String
+  tipo    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberId])
+}
+
+model Schedule {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  titulo    String
+  descricao String?
+
+  tipo ScheduleType
+
+  status ScheduleStatus @default(AGENDADO)
+
+  inicio DateTime
+  fim    DateTime
+
+  local       String?
+  responsavel String?
+  observacoes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  attendances Attendance[]
+
+  @@index([templeId])
+}
+
+model SpiritualCare {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  consulente  String
+  tipo        String
+  responsavel String?
+
+  data DateTime
+
+  descricao   String?
+  observacoes String?
+  resultado   String?
+
+  status SpiritualCareStatus @default(AGENDADO)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  attachments SpiritualCareAttachment[]
+
+  @@index([templeId])
+  @@index([memberId])
+}
+
+model SpiritualCareAttachment {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  spiritualCareId String
+  spiritualCare   SpiritualCare @relation(fields: [spiritualCareId], references: [id], onDelete: Cascade)
+
+  nome    String
+  arquivo String
+  tipo    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templeId])
+  @@index([spiritualCareId])
+}
+
+model VisitorAttendance {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  data       DateTime @db.Date
+  gira       String
+  quantidade Int
+
+  observacoes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([templeId, data, gira])
+  @@index([templeId, data])
+  @@index([templeId, gira])
+}
+
+model MemberDistribution {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  data DateTime @db.Date
+
+  layout Json
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([templeId, data])
+  @@index([templeId, data])
+}
+
+model Attendance {
+  id String @id @default(uuid())
+
+  scheduleId String
+  memberId   String
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  presente Boolean @default(false)
+
+  observacao String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scheduleId, memberId])
+  @@index([scheduleId])
+  @@index([memberId])
+}
+
+model FinancialCategory {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome      String
+  descricao String?
+  cor       String?
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  transactions FinancialTransaction[]
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model FinancialSupplier {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome        String
+  documento   String?
+  telefone    String?
+  email       String?
+  observacoes String?
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model FinancialBankAccount {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome        String
+  banco       String
+  agencia     String?
+  conta       String?
+  titular     String?
+  documento   String?
+  tipo        BankAccountType @default(CORRENTE)
+  observacoes String?
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model CashRegister {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome        String
+  descricao   String?
+  observacoes String?
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  sessions CashSession[]
+
+  @@unique([templeId, nome])
+  @@index([templeId])
+}
+
+model CashSession {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  cashRegisterId String
+  cashRegister   CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+
+  openedAt       DateTime
+  openingBalance Decimal  @db.Decimal(12, 2)
+  openingNotes   String?
+
+  closedAt       DateTime?
+  closingBalance Decimal?  @db.Decimal(12, 2)
+  closingNotes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templeId])
+  @@index([cashRegisterId])
+  @@index([openedAt])
+  @@index([closedAt])
+}
+
+model CashLedgerEntry {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  accountName    String
+  entryDate      DateTime
+  category       String?
+  description    String
+  movementType   String
+  amount         Decimal   @db.Decimal(12, 2)
+  externalId     String?
+  contact        String?
+  document       String?
+  tags           String?
+  documentNumber String?
+  sourceFile     String
+  transferFrom   String?
+  transferTo     String?
+  isTransfer     Boolean   @default(false)
+  importedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([templeId, accountName, externalId])
+  @@index([templeId])
+  @@index([accountName])
+  @@index([entryDate])
+  @@index([sourceFile])
+}
+
+model FinancialTransaction {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  categoryId String
+  category   FinancialCategory @relation(fields: [categoryId], references: [id])
+
+  descricao   String
+  centroCusto String?
+
+  tipo TransactionType
+
+  valor Decimal @db.Decimal(12, 2)
+
+  quantidadeParcelas Int?
+  valorParcela       Decimal? @db.Decimal(12, 2)
+
+  metodo PaymentMethod?
+
+  status PaymentStatus @default(PENDING)
+
+  issuedAt         DateTime?
+  competencia      DateTime?
+  rawStatus        String?
+  amountPaid       Decimal?  @db.Decimal(12, 2)
+  documentNumber   String?
+  paymentReference String?
+  sourcePages      String[]  @default([])
+  sourceFiles      String[]  @default([])
+
+  vencimento DateTime?
+
+  pagamentoEm DateTime?
+
+  comprovante String?
+
+  observacoes String?
+
+  externalSource String?
+  externalId     String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([templeId, externalSource, externalId])
+  @@index([templeId])
+  @@index([categoryId])
+  @@index([externalSource])
+  @@index([issuedAt])
+  @@index([rawStatus])
+}
+
+model MonthlyFee {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  competencia String
+
+  tipoContribuicao String?
+
+  referencia DateTime?
+
+  valor Decimal @db.Decimal(10, 2)
+
+  vencimento DateTime
+
+  pagamentoEm DateTime?
+
+  metodo PaymentMethod?
+
+  status PaymentStatus @default(PENDING)
+
+  observacoes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([memberId, competencia, tipoContribuicao])
+  @@index([templeId])
+  @@index([memberId])
+}
+
+model Product {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  nome      String
+  descricao String?
+  foto      String?
+
+  sku          String? @unique
+  codigoBarras String?
+
+  categoria   String?
+  fornecedor  String?
+  localizacao String?
+  lote        String?
+  validade    DateTime?
+  status      String?
+
+  precoCusto Decimal? @db.Decimal(10, 2)
+  precoVenda Decimal  @db.Decimal(10, 2)
+
+  estoque       Decimal  @default(0) @db.Decimal(10, 2)
+  estoqueMinimo Decimal? @db.Decimal(10, 2)
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  stockMovements StockMovement[]
+  saleItems      SaleItem[]
+
+  @@index([templeId])
+}
+
+enum StockMovementType {
+  ENTRY
+  EXIT
+  TRANSFER
+  INVENTORY
+  ADJUSTMENT
+}
+
+model StockMovement {
+  id String @id @default(uuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  tipo StockMovementType
+
+  quantidade Decimal @db.Decimal(10, 2)
+
+  origem     String?
+  destino    String?
+  observacao String?
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model Sale {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  subtotal Decimal @db.Decimal(12, 2)
+
+  desconto  Decimal @default(0) @db.Decimal(12, 2)
+  acrescimo Decimal @default(0) @db.Decimal(12, 2)
+
+  total Decimal @db.Decimal(12, 2)
+
+  metodo PaymentMethod?
+  status SaleStatus     @default(PAID)
+
+  observacoes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    SaleItem[]
+  payments SalePayment[]
+
+  @@index([templeId])
+  @@index([memberId])
+}
+
+model SaleItem {
+  id String @id @default(uuid())
+
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantidade Decimal @db.Decimal(10, 2)
+
+  valorUnitario Decimal @db.Decimal(10, 2)
+
+  subtotal Decimal @db.Decimal(12, 2)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model SalePayment {
+  id String @id @default(uuid())
+
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  metodo PaymentMethod
+  valor  Decimal       @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  titulo String
+
+  mensagem String
+
+  lida Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([templeId])
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  tabela String
+
+  acao String
+
+  registroId String
+
+  ip String?
+
+  antes Json?
+
+  depois Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([templeId])
+  @@index([userId])
+}
+
+model Setting {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  chave String
+
+  valor String?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([templeId, chave])
+}
+
+model WhatsappConversation {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  channel       String
+  instance      String
+  remoteJid     String
+  phone         String?
+  name          String?
+  pushName      String?
+  profilePicUrl String?
+  lastMessage   String?
+  lastMessageAt DateTime?
+  unreadCount   Int       @default(0)
+  isGroup       Boolean   @default(false)
+  hiddenAt      DateTime?
+  clearedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages WhatsappMessage[]
+
+  @@unique([templeId, channel, remoteJid])
+  @@index([templeId, channel, updatedAt])
+  @@index([remoteJid])
+}
+
+model WhatsappMessage {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  conversationId String?
+  conversation   WhatsappConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  channel   String
+  instance  String
+  remoteJid String
+  messageId String
+  fromMe    Boolean @default(false)
+  pushName  String?
+
+  messageType String?
+  text        String?
+  mediaUrl    String?
+  fileName    String?
+  mimetype    String?
+  status      String?
+  payload     Json?
+  sentAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([templeId, channel, messageId])
+  @@index([templeId, channel, remoteJid, sentAt])
+  @@index([conversationId])
+}
+
+model WhatsappChargeNotification {
+  id String @id @default(uuid())
+
+  templeId String
+  temple   Temple @relation(fields: [templeId], references: [id], onDelete: Cascade)
+
+  transactionId    String
+  notificationType String
+  sentDateKey      String
+
+  memberId         String?
+  memberName       String?
+  phone            String?
+  message          String
+  providerResponse Json?
+  error            String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([templeId, transactionId, notificationType, sentDateKey])
+  @@index([templeId])
+  @@index([transactionId])
+  @@index([sentDateKey])
+}
