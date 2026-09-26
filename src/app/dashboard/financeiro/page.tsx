@@ -4469,6 +4469,10 @@ function BankAccountsSection() {
   const [showLedgerFilters, setShowLedgerFilters] = useState(false);
   const [showLedgerPeriodFilters, setShowLedgerPeriodFilters] = useState(false);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [accountLabels, setAccountLabels] = useState<Record<string, string>>({});
+  const [editingAccountLabel, setEditingAccountLabel] = useState<string | null>(null);
+  const [accountLabelDraft, setAccountLabelDraft] = useState("");
+  const [savingAccountLabel, setSavingAccountLabel] = useState(false);
   const [ledgerPeriodPreset, setLedgerPeriodPreset] = useState<PeriodPreset>("NO_FILTER");
   const [ledgerStartDate, setLedgerStartDate] = useState("");
   const [ledgerEndDate, setLedgerEndDate] = useState("");
@@ -4666,6 +4670,36 @@ function BankAccountsSection() {
       },
     } satisfies CashRegistersResponse;
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/finance/account-labels")
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((labels) => { if (active && labels && typeof labels === "object") setAccountLabels(labels); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  async function saveAccountLabel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingAccountLabel || savingAccountLabel) return;
+    setSavingAccountLabel(true);
+    try {
+      const response = await fetch("/api/finance/account-labels", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountName: editingAccountLabel, label: accountLabelDraft }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Não foi possível salvar o nome.");
+      setAccountLabels(data);
+      setEditingAccountLabel(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Não foi possível salvar o nome.");
+    } finally {
+      setSavingAccountLabel(false);
+    }
+  }
 
   async function exportCashLedgerRows() {
     const params = new URLSearchParams({
@@ -5257,7 +5291,7 @@ function BankAccountsSection() {
     setUpdatingBalance(false);
   }
 
-  const selectedAccountLabel = selectedAccount || "Selecione uma conta";
+  const selectedAccountLabel = accountLabels[selectedAccount] || selectedAccount || "Selecione uma conta";
   const selectedAccountEntries = selectedAccount
     ? accountCounts.get(selectedAccount) ?? Number(summary?.totalEntries || 0)
     : Number(summary?.totalEntries || 0);
@@ -5679,21 +5713,32 @@ function BankAccountsSection() {
                   className="absolute left-0 top-[calc(100%+12px)] z-30 max-h-[320px] w-[260px] overflow-y-auto rounded-[24px] border border-[#E9E1D2] bg-white p-3 shadow-[0_18px_50px_rgba(15,23,42,0.14)]"
                 >
                   {selectableAccounts.map((accountName) => (
-                    <button
-                      key={accountName}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAccount(accountName);
-                        setShowAccountSelector(false);
-                      }}
-                      className={`flex w-full items-center rounded-2xl px-3 py-2.5 text-left text-sm ${
-                        selectedAccount === accountName
-                          ? "bg-[#EEF3FF] font-semibold text-[#2F5BFF]"
-                          : "text-[#1D1B18] hover:bg-[#F7F4EE]"
-                      }`}
-                    >
-                      {accountName}
-                    </button>
+                    <div key={accountName} className={`flex items-center rounded-2xl ${selectedAccount === accountName ? "bg-[#EEF3FF]" : "hover:bg-[#F7F4EE]"}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAccount(accountName);
+                          setShowAccountSelector(false);
+                        }}
+                        className={`min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm ${selectedAccount === accountName ? "font-semibold text-[#2F5BFF]" : "text-[#1D1B18]"}`}
+                        title={accountName}
+                      >
+                        {accountLabels[accountName] || accountName}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountLabelDraft(accountLabels[accountName] || accountName);
+                          setEditingAccountLabel(accountName);
+                          setShowAccountSelector(false);
+                        }}
+                        aria-label={`Editar nome exibido de ${accountName}`}
+                        title="Editar nome exibido"
+                        className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#6E675C] hover:bg-white"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
                   ))}
                 </DraggablePopover>
               ) : null}
@@ -5938,6 +5983,26 @@ function BankAccountsSection() {
           </div>
         </div>
       </section>
+
+      {editingAccountLabel ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-label="Editar nome exibido da conta">
+          <form onSubmit={saveAccountLabel} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-xl font-bold text-slate-900">Editar nome exibido</h2>
+              <button type="button" onClick={() => setEditingAccountLabel(null)} disabled={savingAccountLabel} aria-label="Fechar" className="rounded-full p-2 hover:bg-slate-100"><X size={18} /></button>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">Esse nome aparece no seletor de Caixa e Bancos. Lançamentos, saldos e integrações permanecem vinculados à conta original.</p>
+            <label className="mt-5 block text-sm font-semibold text-slate-700">
+              Nome exibido
+              <input autoFocus value={accountLabelDraft} onChange={(event) => setAccountLabelDraft(event.target.value)} maxLength={120} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal" />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setEditingAccountLabel(null)} disabled={savingAccountLabel} className="rounded-full border px-4 py-2 text-sm">Cancelar</button>
+              <button type="submit" disabled={savingAccountLabel || !accountLabelDraft.trim()} className="rounded-full bg-[#2F5BFF] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingAccountLabel ? "Salvando..." : "Salvar nome"}</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       {showManageAccountsModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
