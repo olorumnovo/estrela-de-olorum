@@ -182,9 +182,13 @@ export default function FinancialReportsPage() {
           <nav className="space-y-1 border-b border-[#ECE7DB] pb-4 md:border-b-0 md:border-r md:pb-0 md:pr-4" aria-label="Categorias de relatórios">
             {groups.map((item) => <button key={item} type="button" onClick={() => setGroup(item)} className={`block w-full rounded-xl px-4 py-2.5 text-left text-sm ${group === item ? "bg-[#EEF3FF] font-semibold text-[#2F5BFF]" : "text-[#57534E] hover:bg-[#F8F6F2]"}`}>{item}</button>)}
           </nav>
-          <div className="space-y-2">
-            <h2 className="mb-4 text-lg font-semibold text-[#171717]">{group}</h2>
-            {reports.filter((item) => item.group === group).map((item) => <button key={item.kind} type="button" onClick={() => { setKind(item.kind); setData(null); setError(""); }} className="block w-full border-b border-[#ECE7DB] px-2 py-3 text-left hover:bg-[#FAF8F3]"><span className="block font-medium text-[#171717]">{item.title}</span><span className="mt-1 block text-sm text-[#8B8478]">{item.description}</span></button>)}
+          <div className="space-y-6">
+            {(group === "Geral" ? groups : [group]).map((section) => (
+              <div key={section}>
+                <h2 className="mb-2 text-lg font-semibold text-[#171717]">{section}</h2>
+                {reports.filter((item) => item.group === section).map((item) => <button key={item.kind} type="button" onClick={() => { setKind(item.kind); setData(null); setError(""); }} className="block w-full border-b border-[#ECE7DB] px-2 py-3 text-left hover:bg-[#FAF8F3]"><span className="block font-medium text-[#171717]">{item.title}</span><span className="mt-1 block text-sm text-[#8B8478]">{item.description}</span></button>)}
+              </div>
+            ))}
           </div>
         </div>
       ) : (
