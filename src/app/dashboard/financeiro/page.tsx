@@ -566,8 +566,31 @@ function formatMonthYearLabel(value: string) {
   }).format(date);
 }
 
-function statusBadgeColor(status: string | null | undefined) {
-  switch (status) {
+function summaryStatusColor(page: string) {
+  switch (page) {
+    case "EM_ABERTO":
+      return { text: "text-amber-600", border: "border-amber-500" };
+    case "EMITIDAS":
+      return { text: "text-orange-600", border: "border-orange-500" };
+    case "PAGAS":
+      return { text: "text-emerald-600", border: "border-emerald-500" };
+    case "ATRASADAS":
+      return { text: "text-rose-600", border: "border-rose-500" };
+    default:
+      return { text: "text-[#6E675C]", border: "border-[#6E675C]" };
+  }
+}
+
+function statusBadgeColor(record: TransactionRecord, transactionType: TransactionViewType) {
+  const label = normalizeSearchText(rawStatusLabel(record, transactionType));
+  if (label.includes("cancel")) return "bg-slate-400";
+  if (label.includes("parcial")) return "bg-blue-500";
+  if (label.includes("emitid")) return "bg-orange-500";
+  if (label.includes("atrasad")) return "bg-rose-500";
+  if (label.includes("recebid") || label.includes("pag")) return "bg-emerald-500";
+  if (label.includes("aberto") || label.includes("pendente")) return "bg-amber-500";
+
+  switch (record.status) {
     case "PAID":
       return "bg-emerald-500";
     case "OVERDUE":
@@ -575,7 +598,7 @@ function statusBadgeColor(status: string | null | undefined) {
     case "CANCELED":
       return "bg-slate-400";
     default:
-      return "bg-indigo-300";
+      return "bg-amber-500";
   }
 }
 
@@ -3494,8 +3517,8 @@ function PayablesListSection({
               onClick={() => onChangePayablePage(option.value)}
               className={`border-b-2 pb-1.5 text-left transition ${
                 option.value === activePayablePage
-                  ? "border-[#43D17C] text-[#171717]"
-                  : "border-transparent text-[#6E675C]"
+                  ? `${summaryStatusColor(option.value).border} ${summaryStatusColor(option.value).text}`
+                  : `border-transparent ${summaryStatusColor(option.value).text}`
               }`}
             >
               <div className="text-[13px] capitalize leading-none">
@@ -3806,7 +3829,7 @@ function PayablesListSection({
                     </td>
                     <td className="px-3 py-4 align-middle">
                       <div className="flex items-center justify-between gap-3">
-                        <span className={`inline-block h-3 w-3 rounded-full ${statusBadgeColor(record.status)}`} />
+                        <span className={`inline-block h-3 w-3 rounded-full ${statusBadgeColor(record, transactionType)}`} />
                         <span className="text-sm text-[#6E675C]">
                           {rawStatusLabel(record, transactionType)}
                         </span>
