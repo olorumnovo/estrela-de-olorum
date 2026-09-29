@@ -44,6 +44,8 @@ type FallbackLedgerEntry = {
   isTransfer: boolean;
 };
 
+const fallbackLedgerCache = new Map<string, { mtimeMs: number; entries: FallbackLedgerEntry[] }>();
+
 function parseBrazilianDate(value: string | undefined) {
   if (!value) {
     return null;
@@ -317,6 +319,10 @@ function loadFallbackLedgerEntries(accountName: string) {
     return [] as FallbackLedgerEntry[];
   }
 
+  const mtimeMs = fs.statSync(filePath).mtimeMs;
+  const cached = fallbackLedgerCache.get(filePath);
+  if (cached?.mtimeMs === mtimeMs) return cached.entries;
+
   const fileBuffer = fs.readFileSync(filePath);
   const workbook = XLSX.read(fileBuffer, { type: "buffer" });
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -324,7 +330,7 @@ function loadFallbackLedgerEntries(accountName: string) {
     defval: "",
   });
 
-  return rows.flatMap((row) => {
+  const entries = rows.flatMap((row) => {
     const currentAccountName = String(row.Conta || "").trim();
     const entryDate = parseBrazilianDate(String(row.Data || ""));
     const description = String(row["Histórico"] || "").trim();
@@ -365,6 +371,8 @@ function loadFallbackLedgerEntries(accountName: string) {
       },
     ];
   });
+  fallbackLedgerCache.set(filePath, { mtimeMs, entries });
+  return entries;
 }
 
 function calculateBalanceFromOrderedEntries(
@@ -1062,6 +1070,30 @@ export async function GET(req: NextRequest) {
 
         return right.externalId.localeCompare(left.externalId, "pt-BR");
       });
+    const allAccountRows = !account
+      ? await (async () => {
+          const fallback = Object.keys(DEFAULT_LEDGER_ACCOUNT_META)
+            .flatMap((name) => loadFallbackLedgerEntries(name))
+            .filter((entry) => {
+              if (movementType && entry.movementType !== movementType) return false;
+              if (startDate && entry.entryDate < startDate) return false;
+              if (endDate && entry.entryDate > endDate) return false;
+              if (!q) return true;
+              return [entry.accountName, entry.description, entry.category, entry.contact, entry.sourceFile]
+                .some((value) => value?.toLowerCase().includes(q.toLowerCase()));
+            });
+          if (fallback.length === 0) return null;
+
+          const persisted = await prisma.cashLedgerEntry.findMany({ where });
+          const fallbackKeys = new Set(fallback.map((entry) => `${entry.accountName}:${entry.externalId}`));
+          return [...fallback, ...persisted.filter((entry) =>
+            !entry.externalId || !fallbackKeys.has(`${entry.accountName}:${entry.externalId}`)
+          )].sort((left, right) => {
+            const byDate = new Date(right.entryDate).getTime() - new Date(left.entryDate).getTime();
+            return byDate || String(right.id).localeCompare(String(left.id), "pt-BR");
+          });
+        })()
+      : null;
     const allTimeFallbackBalance =
       account && !hasPersistedEntries ? calculateBalanceFromOrderedEntries(fallbackEntries) : 0;
 
@@ -1231,14 +1263,16 @@ export async function GET(req: NextRequest) {
             return String(right.id).localeCompare(String(left.id), "pt-BR");
           })
         : [];
-    const effectiveRows =
-      forceOfficialSummaryResolved && account
+    const effectiveRows = allAccountRows
+      ? allAccountRows.slice(skip, skip + perPage)
+      : forceOfficialSummaryResolved && account
         ? mergedOfficialRows.slice(skip, skip + perPage)
         : entries.length > 0 || !account
         ? entries
         : filteredFallbackEntries.slice(skip, skip + perPage);
-    const effectiveTotal =
-      forceOfficialSummaryResolved && account
+    const effectiveTotal = allAccountRows
+      ? allAccountRows.length
+      : forceOfficialSummaryResolved && account
         ? mergedOfficialRows.length
         : total > 0 || !account
           ? total
@@ -1279,7 +1313,7 @@ export async function GET(req: NextRequest) {
                 : !hasPersistedEntries
                   ? filteredFallbackEntries.length
                   : Number(allTimeCount ?? rawSummary.length)
-              : rawSummary.length,
+              : allAccountRows?.length ?? rawSummary.length,
           totalAccounts: summary.accounts.size,
           totalFiles: summary.files.size,
           credits: effectiveCredits,

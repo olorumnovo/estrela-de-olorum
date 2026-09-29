@@ -4951,15 +4951,8 @@ function BankAccountsSection() {
   const archivedSelectableAccounts = useMemo(() => allAccounts.filter((name) => archivedAccounts.includes(name)), [allAccounts, archivedAccounts]);
 
   useEffect(() => {
-    if (selectableAccounts.length === 0) {
-      if (selectedAccount) {
-        setSelectedAccount("");
-      }
-      return;
-    }
-
-    if (!selectedAccount || !selectableAccounts.includes(selectedAccount)) {
-      setSelectedAccount(selectableAccounts[0]);
+    if (selectedAccount && !selectableAccounts.includes(selectedAccount)) {
+      setSelectedAccount("");
     }
   }, [selectedAccount, selectableAccounts]);
 
@@ -5349,7 +5342,7 @@ function BankAccountsSection() {
     setUpdatingBalance(false);
   }
 
-  const selectedAccountLabel = accountLabels[selectedAccount] || selectedAccount || "Selecione uma conta";
+  const selectedAccountLabel = accountLabels[selectedAccount] || selectedAccount || "Sem filtro";
   const selectedAccountEntries = selectedAccount
     ? accountCounts.get(selectedAccount) ?? Number(summary?.totalEntries || 0)
     : Number(summary?.totalEntries || 0);
@@ -5734,7 +5727,7 @@ function BankAccountsSection() {
               type="button"
               onClick={() => {
                 setLedgerSearch("");
-                setSelectedAccount(selectableAccounts[0] || "");
+                setSelectedAccount("");
                 setLedgerMovementType("");
                 setDraftLedgerMovementType("");
                 setLedgerPeriodPreset("NO_FILTER");
@@ -5768,17 +5761,29 @@ function BankAccountsSection() {
               {showAccountSelector ? (
                 <DraggablePopover
                   onClose={() => setShowAccountSelector(false)}
-                  className="absolute left-0 top-[calc(100%+12px)] z-30 max-h-[320px] w-[260px] overflow-y-auto rounded-[24px] border border-[#E9E1D2] bg-white p-3 shadow-[0_18px_50px_rgba(15,23,42,0.14)]"
+                  className="absolute left-0 top-[calc(100%+12px)] z-30 max-h-[360px] w-[min(520px,calc(100vw-48px))] overflow-y-auto rounded-[24px] border border-[#E9E1D2] bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.14)]"
                 >
-                  {selectableAccounts.map((accountName) => (
-                    <div key={accountName} className={`flex items-center rounded-2xl ${selectedAccount === accountName ? "bg-[#EEF3FF]" : "hover:bg-[#F7F4EE]"}`}>
+                  <p className="mb-3 text-xs font-medium text-[#8A8172]">Conta</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAccount("");
+                        setShowAccountSelector(false);
+                      }}
+                      className={`rounded-full border px-3 py-1.5 text-sm transition ${!selectedAccount ? "border-[#2F5BFF] bg-[#EEF3FF] font-semibold text-[#2F5BFF]" : "border-[#E9E1D2] bg-white text-[#1D1B18] hover:bg-[#F7F4EE]"}`}
+                    >
+                      Sem filtro
+                    </button>
+                    {selectableAccounts.map((accountName) => (
+                      <div key={accountName} className={`inline-flex max-w-full items-center rounded-full border transition ${selectedAccount === accountName ? "border-[#2F5BFF] bg-[#EEF3FF]" : "border-[#E9E1D2] bg-white hover:bg-[#F7F4EE]"}`}>
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedAccount(accountName);
                           setShowAccountSelector(false);
                         }}
-                        className={`min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm ${selectedAccount === accountName ? "font-semibold text-[#2F5BFF]" : "text-[#1D1B18]"}`}
+                        className={`min-w-0 max-w-40 truncate py-1.5 pl-3 pr-1 text-left text-sm ${selectedAccount === accountName ? "font-semibold text-[#2F5BFF]" : "text-[#1D1B18]"}`}
                         title={accountName}
                       >
                         {accountLabels[accountName] || accountName}
@@ -5792,7 +5797,7 @@ function BankAccountsSection() {
                         }}
                         aria-label={`Editar nome exibido de ${accountName}`}
                         title="Editar nome exibido"
-                        className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#6E675C] hover:bg-white"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#6E675C] hover:bg-white"
                       >
                         <Pencil size={14} />
                       </button>
@@ -5802,12 +5807,13 @@ function BankAccountsSection() {
                         disabled={updatingAccountVisibility !== null}
                         aria-label={`Arquivar ${accountLabels[accountName] || accountName}`}
                         title="Arquivar sem apagar o histórico"
-                        className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                        className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-rose-600 hover:bg-rose-50 disabled:opacity-50"
                       >
                         <Trash2 size={14} />
                       </button>
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                   {archivedSelectableAccounts.length > 0 && (
                     <div className="mt-2 border-t border-[#E9E1D2] pt-2">
                       <p className="px-3 py-1 text-xs font-semibold text-[#8A8172]">Arquivadas — histórico preservado</p>
@@ -5840,9 +5846,9 @@ function BankAccountsSection() {
                   color: isNegativeAmount(selectedAccountBalance) ? "#DC2626" : "#171717",
                 }}
               >
-                {money(selectedAccountBalance)}
+                {selectedAccount ? money(selectedAccountBalance) : "—"}
               </p>
-              <p className="text-sm text-[#9B9488]">saldo atual (R$)</p>
+              <p className="text-sm text-[#9B9488]">{selectedAccount ? "saldo atual (R$)" : "selecione uma conta para ver o saldo"}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -5854,7 +5860,8 @@ function BankAccountsSection() {
                   });
                   setShowBalanceModal(true);
                 }}
-                className="inline-flex items-center gap-2 rounded-full border border-[#E9E1D2] bg-white px-4 py-2 text-sm font-semibold text-[#1D1B18] transition hover:bg-[#FAF8F3]"
+                disabled={!selectedAccount}
+                className="inline-flex items-center gap-2 rounded-full border border-[#E9E1D2] bg-white px-4 py-2 text-sm font-semibold text-[#1D1B18] transition hover:bg-[#FAF8F3] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Pencil size={15} />
                 editar saldo
@@ -5874,7 +5881,7 @@ function BankAccountsSection() {
       </section>
 
       <section className="overflow-visible rounded-[28px] border border-[#ECE7DB] bg-white shadow-sm">
-        {latestSnapshot ? (
+        {selectedAccount && latestSnapshot ? (
           <div className="border-b border-[#F0E9DC] bg-[#F9F9FB] px-6 py-5">
             <div className="grid grid-cols-[140px_1fr] gap-4">
               <div className="text-[15px] font-semibold text-[#171717]">
@@ -5896,7 +5903,7 @@ function BankAccountsSection() {
           </div>
         ) : null}
         <div className="overflow-x-auto overflow-y-visible">
-          <table className="w-full min-w-[1360px] text-left text-sm">
+          <table className="w-full min-w-[1460px] text-left text-sm">
             <thead className="text-sm text-[#6E675C]">
               <tr className="border-b border-[#EEE7D9]">
                 <th className="w-10 px-4 py-4">
@@ -5904,6 +5911,7 @@ function BankAccountsSection() {
                 </th>
                 <th className="w-8 px-2 py-4"></th>
                 <th className="px-3 py-4 font-medium">Data</th>
+                <th className="px-3 py-4 font-medium">Conta</th>
                 <th className="px-3 py-4 font-medium">Histórico</th>
                 <th className="px-3 py-4 font-medium">Cliente</th>
                 <th className="px-3 py-4 font-medium">Categoria</th>
@@ -5916,14 +5924,14 @@ function BankAccountsSection() {
             <tbody>
               {loadingEntries ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={11} className="px-6 py-8 text-center text-slate-500">
                     Carregando...
                   </td>
                 </tr>
               ) : entries.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-slate-500">
-                    Nenhuma planilha importada ainda.
+                  <td colSpan={11} className="px-6 py-8 text-center text-slate-500">
+                    Nenhum lançamento encontrado para os filtros atuais.
                   </td>
                 </tr>
               ) : (
@@ -5964,6 +5972,7 @@ function BankAccountsSection() {
                       </div>
                     </td>
                     <td className="px-3 py-4 align-middle font-medium">{dateOnly(entry.entryDate)}</td>
+                    <td className="px-3 py-4 align-middle">{accountLabels[entry.accountName] || entry.accountName}</td>
                     <td className="px-3 py-4 align-middle">
                       <div className="max-w-[520px] whitespace-normal">
                         {entry.description}
@@ -6051,23 +6060,29 @@ function BankAccountsSection() {
           </div>
 
           <div className="flex flex-wrap items-end justify-end gap-6 text-right">
-            <FooterMetric
-              label="saldo inicial (R$)"
-              value={money(initialBalance)}
-              negative={isNegativeAmount(initialBalance)}
-            />
-            <FooterMetric label="entradas (R$)" value={money(totalCredits)} />
-            <FooterMetric label="saídas (R$)" value={money(totalDebits)} />
-            <FooterMetric
-              label="saldo final (R$)"
-              value={money(selectedAccountBalance)}
-              negative={isNegativeAmount(selectedAccountBalance)}
-            />
+            {selectedAccount ? (
+              <>
+                <FooterMetric
+                  label="saldo inicial (R$)"
+                  value={money(initialBalance)}
+                  negative={isNegativeAmount(initialBalance)}
+                />
+                <FooterMetric label="entradas (R$)" value={money(totalCredits)} />
+                <FooterMetric label="saídas (R$)" value={money(totalDebits)} />
+                <FooterMetric
+                  label="saldo final (R$)"
+                  value={money(selectedAccountBalance)}
+                  negative={isNegativeAmount(selectedAccountBalance)}
+                />
+              </>
+            ) : null}
             <FooterMetric label="lançamentos" value={String(selectedAccountEntries)} />
-            <FooterMetric
-              label="financeiro fechado"
-              value={latestClosingDate ? dateOnly(latestClosingDate) : "-"}
-            />
+            {selectedAccount ? (
+              <FooterMetric
+                label="financeiro fechado"
+                value={latestClosingDate ? dateOnly(latestClosingDate) : "-"}
+              />
+            ) : null}
           </div>
         </div>
       </section>
