@@ -137,7 +137,7 @@ const submenuByHref = {
       {
         id: "relatorios",
         label: "Relatórios",
-        href: "/dashboard/relatorios",
+        href: "/dashboard/financeiro/relatorios",
         icon: BarChart3,
       },
     ],
@@ -221,7 +221,7 @@ export default function Sidebar() {
       return (
         pathname === "/dashboard/financeiro" &&
         searchParams.get("tab") !== "fornecedores"
-      ) || pathname === "/dashboard/relatorios";
+      ) || pathname === "/dashboard/financeiro/relatorios";
     }
 
     if (href === "/dashboard/pdv") {
@@ -317,7 +317,7 @@ export default function Sidebar() {
   ) {
     if (menuHref === "/dashboard/financeiro") {
       if (subItem.id === "relatorios") {
-        return pathname === "/dashboard/relatorios";
+        return pathname === "/dashboard/financeiro/relatorios";
       }
 
       return pathname === "/dashboard/financeiro" && activeFinanceTab === subItem.id;
@@ -549,7 +549,7 @@ export default function Sidebar() {
                         const subActive =
                           expandedMenuHref === "/dashboard/financeiro"
                             ? subItem.id === "relatorios"
-                              ? pathname === "/dashboard/relatorios"
+                              ? pathname === "/dashboard/financeiro/relatorios"
                               : activeFinanceTab === subItem.id
                             : expandedMenuHref === "/dashboard/pdv"
                                     ? subItem.id === "estoque"
