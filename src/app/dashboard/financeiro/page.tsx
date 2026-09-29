@@ -3510,30 +3510,31 @@ function PayablesListSection({
         </div>
 
         <div className="flex flex-wrap items-end gap-7 pt-1">
-          {visiblePageOptions.map((option) => (
-            <button
+          {visiblePageOptions.map((option) => {
+            const colors = summaryStatusColor(option.value);
+            return <button
               key={option.value}
               type="button"
               onClick={() => onChangePayablePage(option.value)}
               className={`border-b-2 pb-1.5 text-left transition ${
                 option.value === activePayablePage
-                  ? `${summaryStatusColor(option.value).border} ${summaryStatusColor(option.value).text}`
-                  : `border-transparent ${summaryStatusColor(option.value).text}`
+                  ? colors.border
+                  : "border-transparent"
               }`}
             >
-              <div className="text-[13px] capitalize leading-none">
+              <div className={`text-[13px] capitalize leading-none ${colors.text}`}>
                 {transactionType === "INCOME" && option.value === "PAGAS"
                   ? "recebidas"
                   : option.label.toLowerCase()}
               </div>
-              <div className="mt-1 text-[15px] leading-none font-semibold tracking-[-0.02em]">
+              <div className={`mt-1 text-[15px] leading-none font-semibold tracking-[-0.02em] ${colors.text}`}>
                 {payableBuckets[option.value] || 0}
               </div>
-              <div className="mt-1 text-[12px] leading-none text-[#9B9488]">
+              <div className={`mt-1 text-[12px] leading-none opacity-75 ${colors.text}`}>
                 {money(payableBucketTotals[option.value] || 0)}
               </div>
-            </button>
-          ))}
+            </button>;
+          })}
         </div>
       </div>
 
