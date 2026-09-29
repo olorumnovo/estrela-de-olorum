@@ -569,15 +569,15 @@ function formatMonthYearLabel(value: string) {
 function summaryStatusColor(page: string) {
   switch (page) {
     case "EM_ABERTO":
-      return { text: "text-amber-600", border: "border-amber-500" };
+      return "border-amber-500";
     case "EMITIDAS":
-      return { text: "text-orange-600", border: "border-orange-500" };
+      return "border-orange-500";
     case "PAGAS":
-      return { text: "text-emerald-600", border: "border-emerald-500" };
+      return "border-emerald-500";
     case "ATRASADAS":
-      return { text: "text-rose-600", border: "border-rose-500" };
+      return "border-rose-500";
     default:
-      return { text: "text-[#6E675C]", border: "border-[#6E675C]" };
+      return "border-[#6E675C]";
   }
 }
 
@@ -3510,31 +3510,30 @@ function PayablesListSection({
         </div>
 
         <div className="flex flex-wrap items-end gap-7 pt-1">
-          {visiblePageOptions.map((option) => {
-            const colors = summaryStatusColor(option.value);
-            return <button
+          {visiblePageOptions.map((option) => (
+            <button
               key={option.value}
               type="button"
               onClick={() => onChangePayablePage(option.value)}
               className={`border-b-2 pb-1.5 text-left transition ${
                 option.value === activePayablePage
-                  ? colors.border
-                  : "border-transparent"
+                  ? `${summaryStatusColor(option.value)} text-[#171717]`
+                  : "border-transparent text-[#6E675C]"
               }`}
             >
-              <div className={`text-[13px] capitalize leading-none ${colors.text}`}>
+              <div className="text-[13px] capitalize leading-none">
                 {transactionType === "INCOME" && option.value === "PAGAS"
                   ? "recebidas"
                   : option.label.toLowerCase()}
               </div>
-              <div className={`mt-1 text-[15px] leading-none font-semibold tracking-[-0.02em] ${colors.text}`}>
+              <div className="mt-1 text-[15px] leading-none font-semibold tracking-[-0.02em]">
                 {payableBuckets[option.value] || 0}
               </div>
-              <div className={`mt-1 text-[12px] leading-none opacity-75 ${colors.text}`}>
+              <div className="mt-1 text-[12px] leading-none text-[#9B9488]">
                 {money(payableBucketTotals[option.value] || 0)}
               </div>
-            </button>;
-          })}
+            </button>
+          ))}
         </div>
       </div>
 
