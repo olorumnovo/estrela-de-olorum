@@ -7,7 +7,7 @@ import { spreadsheetTemplates, type SpreadsheetResource } from "@/lib/spreadshee
 
 type Preview = { total: number; ready: number; duplicate: number; errors: { line: number; reason: string }[]; created?: number };
 
-export default function SpreadsheetImportActions({ resource, onImported }: { resource: SpreadsheetResource; onImported?: () => void }) {
+export default function SpreadsheetImportActions({ resource, onImported, dialogOpen, onDialogClose }: { resource: SpreadsheetResource; onImported?: () => void; dialogOpen?: boolean; onDialogClose?: () => void }) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -95,7 +95,7 @@ export default function SpreadsheetImportActions({ resource, onImported }: { res
   }
 
   if (!allowed && !isFinancial && !isStock) return null;
-  return (
+  const controls = (
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" onClick={downloadTemplate} className="rounded-full border border-[#E9E1D2] px-4 py-2 text-sm font-medium">Baixar modelo</button>
       <button type="button" onClick={() => inputRef.current?.click()} disabled={busy || allowed !== true} title={allowed === false ? `É necessária a permissão ${isStock ? "estoque.criar" : "financeiro.criar"} para importar.` : undefined} className="rounded-full border border-[#E9E1D2] px-4 py-2 text-sm font-medium disabled:opacity-50">{resource === "payables" ? "Importar contas a pagar" : resource === "receivables" ? "Importar contas a receber" : resource === "products" ? "Importar estoque" : "Importar planilha"}</button>
@@ -114,6 +114,22 @@ export default function SpreadsheetImportActions({ resource, onImported }: { res
         </div>
       )}
       {message && <span role="status" className="w-full text-sm text-slate-700">{message}</span>}
+    </div>
+  );
+
+  if (dialogOpen === undefined) return controls;
+  if (!dialogOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={`Importar ${template.label}`}>
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-[#171717]">Importar de uma planilha</h2>
+          <button type="button" onClick={onDialogClose} disabled={busy} aria-label="Fechar importação" className="rounded-full border border-[#E9E1D2] px-3 py-1 text-sm disabled:opacity-50">Fechar</button>
+        </div>
+        <p className="mb-4 text-sm text-[#6E675C]">Baixe o modelo, selecione a planilha e confira a prévia antes de confirmar. Registros duplicados serão ignorados.</p>
+        {controls}
+      </div>
     </div>
   );
 }

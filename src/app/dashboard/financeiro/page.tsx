@@ -2006,6 +2006,7 @@ function PayablesListSection({
   const [showFilters, setShowFilters] = useState(false);
   const [showPeriodFilters, setShowPeriodFilters] = useState(false);
   const [showTopActionsMenu, setShowTopActionsMenu] = useState(false);
+  const [showSpreadsheetImporter, setShowSpreadsheetImporter] = useState(false);
   const [showBulkSettlementModal, setShowBulkSettlementModal] = useState(false);
   const [showBulkSettlementDetails, setShowBulkSettlementDetails] = useState(false);
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("MONTH");
@@ -2446,7 +2447,7 @@ function PayablesListSection({
     );
   }
 
-  async function printFinancialRows() {
+  async function printFinancialRows(grouped = false) {
     const popup = window.open("", "_blank", "width=1100,height=760");
 
     if (!popup) {
@@ -2501,10 +2502,9 @@ function PayablesListSection({
         transactionType === "INCOME" && activePayablePage === "PAGAS"
           ? "Recebidas"
           : activePageLabel
-      }`;
+      }${grouped ? ` - Agrupado por ${transactionType === "EXPENSE" ? "fornecedor" : "cliente"}` : ""}`;
       const logoUrl = `${window.location.origin}/logo.png`;
-      const tableRows = rows
-        .map((record) => {
+      const renderPrintRow = (record: TransactionRecord) => {
           const valor = numberValue(record.valor);
           const pago = numberValue(record.amountPaid);
           const saldo = Math.max(valor - pago, 0);
@@ -2522,8 +2522,22 @@ function PayablesListSection({
               <td>${escapeHtml(rawStatusLabel(record, transactionType))}</td>
             </tr>
           `;
-        })
-        .join("");
+      };
+      const tableRows = grouped
+        ? Array.from(rows.reduce((groups, record) => {
+            const party = text(record.centroCusto);
+            const group = groups.get(party) || [];
+            group.push(record);
+            groups.set(party, group);
+            return groups;
+          }, new Map<string, TransactionRecord[]>()))
+            .sort(([left], [right]) => left.localeCompare(right, "pt-BR"))
+            .map(([party, group]) => {
+              const total = group.reduce((sum, record) => sum + numberValue(record.valor), 0);
+              const paid = group.reduce((sum, record) => sum + numberValue(record.amountPaid), 0);
+              return `<tr class="group-title"><td colspan="9">${escapeHtml(party)} · ${group.length} conta(s)</td></tr>${group.map(renderPrintRow).join("")}<tr class="group-total"><td colspan="5">Subtotal — ${escapeHtml(party)}</td><td class="money">${escapeHtml(money(total))}</td><td class="money">${escapeHtml(money(Math.max(total - paid, 0)))}</td><td class="money">${escapeHtml(money(paid))}</td><td></td></tr>`;
+            }).join("")
+        : rows.map(renderPrintRow).join("");
 
       popup.document.open();
       popup.document.write(`<!DOCTYPE html>
@@ -2544,6 +2558,9 @@ function PayablesListSection({
               th, td { border-bottom: 1px solid #ddd; padding: 7px 6px; text-align: left; vertical-align: top; }
               th { color: #555; font-weight: 700; }
               .money { text-align: right; white-space: nowrap; }
+              .group-title td { background: #f1f4fb; font-weight: 700; padding-top: 11px; }
+              .group-total td { background: #f8f8f8; font-weight: 700; }
+              .group-title, .group-total { break-inside: avoid; }
             </style>
           </head>
           <body>
@@ -3107,17 +3124,6 @@ function PayablesListSection({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <SpreadsheetImportActions resource={transactionType === "EXPENSE" ? "payables" : "receivables"} />
-            <button type="button" onClick={() => void exportFinancialRows()} className="inline-flex items-center rounded-full border border-[#E9E1D2] bg-white px-4 py-2 text-sm font-medium text-[#1D1B18]">Exportar planilha</button>
-            <button
-              type="button"
-              onClick={() => void printFinancialRows()}
-              className="inline-flex items-center gap-2 rounded-full border border-[#E9E1D2] bg-white px-4 py-2 text-sm font-medium text-[#1D1B18]"
-            >
-              <Printer size={16} />
-              imprimir
-            </button>
-
             {allowPayment && (
             <button
               type="button"
@@ -3182,15 +3188,54 @@ function PayablesListSection({
                     type="button"
                     onClick={() => {
                       setShowTopActionsMenu(false);
+                      void printFinancialRows();
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#1D1B18] hover:bg-[#F7F4EE]"
+                  >
+                    <Printer size={16} />
+                    {transactionType === "EXPENSE" ? "Imprimir relatório" : "Imprimir"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTopActionsMenu(false);
+                      void printFinancialRows(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#1D1B18] hover:bg-[#F7F4EE]"
+                  >
+                    <Printer size={16} />
+                    {transactionType === "EXPENSE" ? "Imprimir agrupado por fornecedor" : "Imprimir agrupado por clientes"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTopActionsMenu(false);
                       void exportFinancialRows();
                     }}
-                    className="flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#1D1B18] hover:bg-[#F7F4EE]"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#1D1B18] hover:bg-[#F7F4EE]"
                   >
-                    exportar Excel
+                    <FileText size={16} />
+                    Exportar para planilha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTopActionsMenu(false);
+                      setShowSpreadsheetImporter(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#1D1B18] hover:bg-[#F7F4EE]"
+                  >
+                    <FileText size={16} />
+                    Importar de uma planilha
                   </button>
                 </DraggablePopover>
               )}
             </div>
+            <SpreadsheetImportActions
+              resource={transactionType === "EXPENSE" ? "payables" : "receivables"}
+              dialogOpen={showSpreadsheetImporter}
+              onDialogClose={() => setShowSpreadsheetImporter(false)}
+            />
           </div>
         </div>
 
