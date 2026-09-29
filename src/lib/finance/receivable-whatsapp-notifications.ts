@@ -174,6 +174,7 @@ export async function processReceivableWhatsappNotifications(args: {
   const upcomingRange = utcDateRangeFromKey(upcomingUntilKey);
   const onlyPhone = digitsOnly(args.onlyPhone);
   const templates = await getReceivableWhatsappTemplates(args.templeId);
+  const repeatDays = (await getChargeAutomationState(args.templeId)).repeatDays;
 
   const members = await prisma.member.findMany({
     where: {
@@ -278,7 +279,7 @@ export async function processReceivableWhatsappNotifications(args: {
     const member = possibleMembers.length === 1 ? possibleMembers[0] : undefined;
     const phone = digitsOnly(member?.whatsapp || member?.telefone);
     const sentDateKey = kind === "DUE_TODAY" ? todayKey : dateKeyFromDate(transaction.vencimento);
-    const sentKey = kind === "OVERDUE" ? `${transaction.id}:${kind}` : `${transaction.id}:${kind}:${sentDateKey}`;
+    const sentKey = kind === "OVERDUE" ? `${transaction.id}:OVERDUE` : `${transaction.id}:${kind}:${sentDateKey}`;
     candidateSentKeys.set(transaction.id, sentKey);
 
     const candidate: Candidate = {
@@ -314,7 +315,7 @@ export async function processReceivableWhatsappNotifications(args: {
             .filter((candidate) => candidate.transaction.vencimento)
             .map((candidate) => ({
               transactionId: candidate.transaction.id,
-              notificationType: candidate.kind,
+              notificationType: candidate.kind === "OVERDUE" ? { in: ["OVERDUE", "MANUAL_OVERDUE"] } : candidate.kind,
               ...(candidate.kind === "OVERDUE" ? {} : {
                 sentDateKey:
                   candidate.kind === "UPCOMING" && candidate.transaction.vencimento
@@ -327,12 +328,13 @@ export async function processReceivableWhatsappNotifications(args: {
           transactionId: true,
           notificationType: true,
           sentDateKey: true,
+          createdAt: true,
         },
       })
     : [];
   const sentLogKeys = new Set(
-    sentLogs.map((log) => log.notificationType === "OVERDUE"
-      ? `${log.transactionId}:${log.notificationType}`
+    sentLogs.map((log) => log.notificationType === "OVERDUE" || log.notificationType === "MANUAL_OVERDUE"
+      ? repeatDays === 0 || log.createdAt.getTime() > Date.now() - repeatDays * 86_400_000 ? `${log.transactionId}:OVERDUE` : ""
       : `${log.transactionId}:${log.notificationType}:${log.sentDateKey}`)
   );
 
@@ -375,15 +377,19 @@ export async function processReceivableWhatsappNotifications(args: {
         select: { valor: true, amountPaid: true },
       });
       if (!fresh || openAmount(fresh.valor, fresh.amountPaid) <= 0) continue;
+      const currentMessage = buildMessage({
+        ...candidate,
+        transaction: { ...candidate.transaction, valor: fresh.valor, amountPaid: fresh.amountPaid },
+      }, templates);
       attempted++;
 
       const sentDateKey =
-        candidate.kind !== "DUE_TODAY" && candidate.transaction.vencimento
+        candidate.kind === "UPCOMING" && candidate.transaction.vencimento
           ? dateKeyFromDate(candidate.transaction.vencimento)
           : todayKey;
 
       try {
-        const providerResponse = await sendFinanceiroText(candidate.phone, candidate.message);
+        const providerResponse = await sendFinanceiroText(candidate.phone, currentMessage);
         await prisma.whatsappChargeNotification.upsert({
           where: { templeId_transactionId_notificationType_sentDateKey: {
             templeId: args.templeId,
@@ -399,11 +405,11 @@ export async function processReceivableWhatsappNotifications(args: {
             memberId: candidate.member?.id,
             memberName: candidate.member?.nome || candidate.transaction.centroCusto,
             phone: candidate.phone,
-            message: candidate.message,
+            message: currentMessage,
             providerResponse: providerResponse as object,
           },
           update: {
-            message: candidate.message,
+            message: currentMessage,
             phone: candidate.phone,
             providerResponse: providerResponse as object,
             error: null,
@@ -432,7 +438,7 @@ export async function processReceivableWhatsappNotifications(args: {
               memberId: candidate.member?.id,
               memberName: candidate.member?.nome || candidate.transaction.centroCusto,
               phone: candidate.phone,
-              message: candidate.message,
+              message: currentMessage,
               error: message,
             },
             update: { error: message },

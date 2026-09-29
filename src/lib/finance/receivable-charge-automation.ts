@@ -3,14 +3,30 @@ import { PaymentStatus, Prisma, TransactionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const CHARGE_AUTOMATION_KEY = "whatsapp_charge_automation";
-export const CHARGE_INTERVAL_MINUTES = 5;
+export const DEFAULT_CHARGE_INTERVAL_MINUTES = 5;
+export const DEFAULT_OVERDUE_REPEAT_DAYS = 0;
 
 export type ChargeAutomationState = {
   enabled: boolean;
   nextSendAt: string | null;
+  intervalMinutes: number;
+  repeatDays: number;
 };
 
-const initialState: ChargeAutomationState = { enabled: false, nextSendAt: null };
+const initialState: ChargeAutomationState = {
+  enabled: false,
+  nextSendAt: null,
+  intervalMinutes: DEFAULT_CHARGE_INTERVAL_MINUTES,
+  repeatDays: DEFAULT_OVERDUE_REPEAT_DAYS,
+};
+
+export function validChargeInterval(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 5 && value <= 1440;
+}
+
+export function validRepeatDays(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 365;
+}
 
 function parseState(value: string | null): ChargeAutomationState {
   try {
@@ -18,6 +34,8 @@ function parseState(value: string | null): ChargeAutomationState {
     return {
       enabled: parsed?.enabled === true,
       nextSendAt: typeof parsed?.nextSendAt === "string" ? parsed.nextSendAt : null,
+      intervalMinutes: validChargeInterval(parsed?.intervalMinutes) ? parsed.intervalMinutes : DEFAULT_CHARGE_INTERVAL_MINUTES,
+      repeatDays: validRepeatDays(parsed?.repeatDays) ? parsed.repeatDays : DEFAULT_OVERDUE_REPEAT_DAYS,
     };
   } catch {
     return initialState;
@@ -42,7 +60,9 @@ export async function setChargeAutomationEnabled(templeId: string, enabled: bool
     const current = parseState(setting.valor);
     const next: ChargeAutomationState = {
       enabled,
-      nextSendAt: enabled ? (current.enabled ? current.nextSendAt : new Date().toISOString()) : null,
+      nextSendAt: current.nextSendAt,
+      intervalMinutes: current.intervalMinutes,
+      repeatDays: current.repeatDays,
     };
     const updated = await prisma.setting.updateMany({
       where: { id: setting.id, valor: setting.valor },
@@ -53,18 +73,39 @@ export async function setChargeAutomationEnabled(templeId: string, enabled: bool
   throw new Error("O estado da automação mudou. Tente novamente.");
 }
 
+export async function setChargeAutomationFrequency(templeId: string, intervalMinutes: number, repeatDays: number) {
+  if (!validChargeInterval(intervalMinutes) || !validRepeatDays(repeatDays)) {
+    throw new Error("Informe um intervalo de 5 a 1440 minutos e repetição de 0 a 365 dias (0 desativa a repetição).");
+  }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const setting = await getChargeAutomationSetting(templeId);
+    const current = parseState(setting.valor);
+    const lastSendAt = current.nextSendAt ? Date.parse(current.nextSendAt) - current.intervalMinutes * 60_000 : NaN;
+    const nextSendAt = Number.isFinite(lastSendAt)
+      ? new Date(Math.max(Date.now(), lastSendAt + intervalMinutes * 60_000)).toISOString()
+      : current.nextSendAt;
+    const next = { ...current, intervalMinutes, repeatDays, nextSendAt };
+    const updated = await prisma.setting.updateMany({
+      where: { id: setting.id, valor: setting.valor },
+      data: { valor: JSON.stringify(next) },
+    });
+    if (updated.count === 1) return next;
+  }
+  throw new Error("A periodicidade mudou ao mesmo tempo. Tente novamente.");
+}
+
 // Reserva um único intervalo no banco antes de chamar o provedor. Invocações
 // simultâneas não conseguem reservar o mesmo intervalo.
 export async function claimChargeSendSlot(templeId: string) {
   const setting = await getChargeAutomationSetting(templeId);
   const current = parseState(setting.valor);
   const now = Date.now();
-  if (!current.enabled || (current.nextSendAt && Date.parse(current.nextSendAt) > now)) {
+  if (current.nextSendAt && Date.parse(current.nextSendAt) > now) {
     return false;
   }
   const next = {
-    enabled: true,
-    nextSendAt: new Date(now + CHARGE_INTERVAL_MINUTES * 60_000).toISOString(),
+    ...current,
+    nextSendAt: new Date(now + current.intervalMinutes * 60_000).toISOString(),
   };
   const updated = await prisma.setting.updateMany({
     where: { id: setting.id, valor: setting.valor },

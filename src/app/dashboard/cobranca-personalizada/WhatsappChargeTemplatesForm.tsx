@@ -3,6 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, RotateCcw, Save } from "lucide-react";
 
+type OverdueItem = { id: string; nome: string | null; historico: string; vencimento: string | null; saldo: number };
+type ManualJob = { id: string; memberName: string; amountOverride: number | null; status: "QUEUED" | "SENDING" | "SENT" | "FAILED" | "SKIPPED"; error?: string };
+
+function customAmount(value: string) {
+  if (!value.trim()) return null;
+  const normalized = value.trim().replace(",", ".");
+  if (!/^\d{1,8}(?:\.\d{1,2})?$/.test(normalized)) throw new Error("Informe um valor positivo com até duas casas decimais.");
+  const amount = Number(normalized);
+  if (amount <= 0) throw new Error("O valor personalizado deve ser maior que zero.");
+  return amount;
+}
+
+const currency = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
 import {
   receivableWhatsappTemplateDefaults,
   receivableWhatsappTemplateVariables,
@@ -58,11 +72,19 @@ export default function WhatsappChargeTemplatesForm({
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [enabled, setEnabled] = useState(false);
+  const [intervalMinutes, setIntervalMinutes] = useState(5);
+  const [repeatDays, setRepeatDays] = useState(0);
+  const [savingFrequency, setSavingFrequency] = useState(false);
   const [loadingState, setLoadingState] = useState(true);
   const [changingState, setChangingState] = useState(false);
   const [overduePage, setOverduePage] = useState(1);
-  const [overdue, setOverdue] = useState<{ total: number; pages: number; items: Array<{ id: string; nome: string | null; historico: string; vencimento: string | null; saldo: number }> }>({ total: 0, pages: 1, items: [] });
+  const [overdue, setOverdue] = useState<{ total: number; pages: number; items: OverdueItem[] }>({ total: 0, pages: 1, items: [] });
   const [overdueError, setOverdueError] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [individualAmounts, setIndividualAmounts] = useState<Record<string, string>>({});
+  const [bulkAmount, setBulkAmount] = useState("");
+  const [queueJobs, setQueueJobs] = useState<ManualJob[]>([]);
+  const [queueBusy, setQueueBusy] = useState(false);
   const activeOption = templateOptions.find((option) => option.id === activeKind)!;
   const preview = useMemo(
     () => renderReceivableWhatsappTemplate(templates[activeKind], previewVariables),
@@ -75,7 +97,11 @@ export default function WhatsappChargeTemplatesForm({
         if (!response.ok) throw new Error("Não foi possível consultar a automação.");
         return response.json();
       })
-      .then((data) => setEnabled(data.enabled === true))
+      .then((data) => {
+        setEnabled(data.enabled === true);
+        setIntervalMinutes(data.intervalMinutes || 5);
+        setRepeatDays(data.repeatDays ?? 0);
+      })
       .catch((error) => setFeedback(error.message))
       .finally(() => setLoadingState(false));
   }, []);
@@ -89,6 +115,82 @@ export default function WhatsappChargeTemplatesForm({
       .then((data) => { setOverdue(data); setOverdueError(""); })
       .catch((error) => setOverdueError(error.message));
   }, [overduePage]);
+
+  async function refreshQueue() {
+    const response = await fetch("/api/finance/receivables/manual-whatsapp-charges");
+    if (!response.ok) return;
+    const data = await response.json();
+    setQueueJobs(Array.isArray(data.jobs) ? data.jobs : []);
+  }
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/finance/receivables/manual-whatsapp-charges")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (active && Array.isArray(data?.jobs)) setQueueJobs(data.jobs); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  async function saveFrequency() {
+    setSavingFrequency(true);
+    setFeedback("");
+    try {
+      const response = await fetch("/api/settings/whatsapp-charge-automation", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "frequency", intervalMinutes, repeatDays }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Não foi possível salvar a periodicidade.");
+      setFeedback("Periodicidade salva. O cron externo continua chamando a cada 5 minutos; o sistema respeita o intervalo escolhido.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Não foi possível salvar a periodicidade.");
+    } finally {
+      setSavingFrequency(false);
+    }
+  }
+
+  async function enqueue(ids: string[], bulk: boolean) {
+    setFeedback("");
+    try {
+      const commonAmount = bulk ? customAmount(bulkAmount) : null;
+      const entries = ids.map((transactionId) => ({
+        transactionId,
+        amountOverride: customAmount(individualAmounts[transactionId] || "") ?? commonAmount,
+      }));
+      if (!window.confirm(`Enfileirar ${entries.length} cobrança(s) pelo WhatsApp Financeiro? ${commonAmount !== null ? `${currency(commonAmount)} será informado em cada mensagem sem alterar as contas.` : "O saldo real será informado, exceto nos valores individuais preenchidos."} Os envios serão espaçados conforme a periodicidade salva.`)) return;
+      setQueueBusy(true);
+      const response = await fetch("/api/finance/receivables/manual-whatsapp-charges", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entries }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Não foi possível enfileirar as cobranças.");
+      setSelectedIds((current) => current.filter((id) => !ids.includes(id)));
+      setFeedback(`${data.queued} cobrança(s) enfileirada(s). Os envios ocorrerão no horário permitido, um por vez.`);
+      await refreshQueue();
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Não foi possível enfileirar as cobranças.");
+    } finally {
+      setQueueBusy(false);
+    }
+  }
+
+  async function cancelJob(id: string) {
+    if (!window.confirm("Cancelar esta cobrança ainda não enviada?")) return;
+    setQueueBusy(true);
+    try {
+      const response = await fetch("/api/finance/receivables/manual-whatsapp-charges", {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Não foi possível cancelar.");
+      await refreshQueue();
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Não foi possível cancelar.");
+    } finally {
+      setQueueBusy(false);
+    }
+  }
 
   async function changeAutomation() {
     setChangingState(true);
@@ -150,7 +252,7 @@ export default function WhatsappChargeTemplatesForm({
         <div>
           <h2 className="text-lg font-bold text-slate-900">Cobrança automática</h2>
           <p className="mt-1 text-sm text-slate-600">{loadingState ? "Consultando estado..." : enabled ? "Ativa — mensagens bloqueadas para edição" : "Pausada — você pode editar as mensagens"}</p>
-          <p className="mt-1 text-xs text-slate-500">Um envio por vez, com intervalo mínimo de 5 minutos, entre 09h e 18h (São Paulo). A execução depende do agendador de produção.</p>
+          <p className="mt-1 text-xs text-slate-500">Um envio por vez, entre 09h e 18h (São Paulo). A fila manual continua funcionando mesmo se a cobrança automática estiver pausada.</p>
           <p className="mt-1 text-xs text-amber-700">Agendamento externo: configure uma chamada GET autenticada a cada 5 minutos no cron-job.org.</p>
         </div>
         <button type="button" onClick={() => void changeAutomation()} disabled={loadingState || changingState}
@@ -158,20 +260,44 @@ export default function WhatsappChargeTemplatesForm({
           {changingState ? "Aguarde..." : enabled ? "Pausar cobrança automática" : "Ativar cobrança automática"}
         </button>
       </div>
+      <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <label className="text-sm font-semibold text-slate-700">Intervalo entre mensagens (minutos)
+          <input type="number" min={5} max={1440} step={1} value={intervalMinutes} onChange={(event) => setIntervalMinutes(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-semibold text-slate-700">Repetir cobrança atrasada após (dias; 0 = nunca)
+          <input type="number" min={0} max={365} step={1} value={repeatDays} onChange={(event) => setRepeatDays(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal" />
+        </label>
+        <button type="button" onClick={() => void saveFrequency()} disabled={loadingState || savingFrequency || intervalMinutes < 5 || intervalMinutes > 1440 || repeatDays < 0 || repeatDays > 365} className="rounded-full border border-[#2F5BFF] px-5 py-2.5 text-sm font-semibold text-[#2F5BFF] disabled:opacity-50">{savingFrequency ? "Salvando..." : "Salvar frequência"}</button>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">O cron externo deve continuar rodando a cada 5 minutos. O envio pode ocorrer no próximo ciclo após o intervalo escolhido. A repetição vale para a mesma conta atrasada; avisos de vencimento continuam únicos.</p>
       {feedback && <p role="status" className="mt-3 text-sm text-slate-700">{feedback}</p>}
     </section>
     <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-5 sm:p-6">
         <h2 className="text-lg font-bold text-slate-900">Membros com contas atrasadas</h2>
         <p className="mt-1 text-sm text-slate-500">Mesmo critério de “Sem competência” → “Atrasadas” em Contas a Receber: apenas membros ativos, sem filtro de mês. {overdue.total} conta(s).</p>
+        <p className="mt-1 text-xs text-amber-700">O valor personalizado altera somente o texto da mensagem, nunca a conta a receber. O valor em massa é aplicado a cada conta selecionada; valores individuais têm prioridade.</p>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <button type="button" onClick={() => setSelectedIds((current) => [...new Set([...current, ...overdue.items.map((item) => item.id)])])} disabled={!overdue.items.length} className="rounded-full border px-4 py-2 text-xs font-semibold disabled:opacity-50">Selecionar página</button>
+          <button type="button" onClick={() => setSelectedIds([])} disabled={!selectedIds.length} className="rounded-full border px-4 py-2 text-xs font-semibold disabled:opacity-50">Limpar seleção</button>
+          <label className="text-xs font-semibold text-slate-700">Valor em massa (R$) — opcional
+            <input inputMode="decimal" value={bulkAmount} onChange={(event) => setBulkAmount(event.target.value)} placeholder="Saldo real" className="mt-1 block w-40 rounded-xl border px-3 py-2 font-normal" />
+          </label>
+          <button type="button" onClick={() => void enqueue(selectedIds, true)} disabled={queueBusy || !selectedIds.length || selectedIds.length > 100} className="rounded-full bg-[#2F5BFF] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">Enfileirar selecionadas ({selectedIds.length})</button>
+        </div>
+        {selectedIds.length > 100 && <p className="mt-2 text-xs text-red-700">Envie no máximo 100 contas por lote.</p>}
       </div>
       {overdueError && <p className="p-5 text-sm text-red-700">{overdueError}</p>}
       <div className="divide-y divide-slate-100">
         {overdue.items.map((item) => (
-          <div key={item.id} className="grid gap-1 px-5 py-3 text-sm sm:grid-cols-[1fr_1.5fr_auto_auto] sm:gap-4">
-            <strong>{item.nome}</strong><span className="text-slate-600">{item.historico}</span>
-            <span>{item.vencimento?.split("-").reverse().join("/")}</span>
-            <strong className="text-red-700">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.saldo)}</strong>
+          <div key={item.id} className="grid gap-2 px-5 py-3 text-sm sm:grid-cols-[auto_1fr_1.4fr_auto_auto] sm:items-center sm:gap-4">
+            <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))} aria-label={`Selecionar cobrança de ${item.nome || "membro"}`} />
+            <div><strong>{item.nome}</strong><span className="block text-xs text-slate-500">{item.vencimento?.split("-").reverse().join("/")}</span></div>
+            <span className="text-slate-600">{item.historico}</span>
+            <strong className="text-red-700">{currency(item.saldo)}</strong>
+            <div className="flex items-end gap-2"><label className="text-xs text-slate-500">Valor na mensagem
+              <input inputMode="decimal" value={individualAmounts[item.id] || ""} onChange={(event) => setIndividualAmounts((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Saldo real" className="mt-1 block w-28 rounded-lg border px-2 py-1.5 text-sm text-slate-900" />
+            </label><button type="button" onClick={() => void enqueue([item.id], false)} disabled={queueBusy} className="rounded-full border border-[#2F5BFF] px-3 py-1.5 text-xs font-semibold text-[#2F5BFF] disabled:opacity-50">Só este</button></div>
           </div>
         ))}
         {!overdueError && overdue.items.length === 0 && <p className="p-5 text-sm text-slate-500">Nenhuma conta atrasada encontrada.</p>}
@@ -181,6 +307,13 @@ export default function WhatsappChargeTemplatesForm({
         <span>{overduePage} / {overdue.pages}</span>
         <button disabled={overduePage >= overdue.pages} onClick={() => setOverduePage((page) => page + 1)} className="disabled:opacity-40">Próxima</button>
       </div>}
+    </section>
+    <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-slate-900">Fila de cobranças manuais</h2><p className="text-xs text-slate-500">Próximo envio no horário permitido, respeitando o intervalo. Contas quitadas antes do envio são ignoradas.</p></div><button type="button" onClick={() => void refreshQueue()} className="rounded-full border px-3 py-2 text-xs">Atualizar</button></div>
+      <div className="mt-4 max-h-72 divide-y overflow-y-auto">
+        {queueJobs.slice(0, 30).map((job) => <div key={job.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="font-medium">{job.memberName}</span><span>{job.amountOverride === null ? "Saldo real" : currency(job.amountOverride)}</span><span className="text-slate-500">{{ QUEUED: "Na fila", SENDING: "Em envio — verificar antes de reenviar", SENT: "Enviada", FAILED: "Falhou — verificar antes de reenviar", SKIPPED: "Ignorada/cancelada" }[job.status]}</span>{job.status === "QUEUED" && <button type="button" onClick={() => void cancelJob(job.id)} disabled={queueBusy} className="text-xs font-semibold text-red-700 disabled:opacity-50">Cancelar</button>}{job.error && <span className="w-full text-xs text-red-700">{job.error}</span>}</div>)}
+        {!queueJobs.length && <p className="py-3 text-sm text-slate-500">Nenhuma cobrança manual na fila.</p>}
+      </div>
     </section>
     <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div className="grid border-b border-slate-200 lg:grid-cols-3">
