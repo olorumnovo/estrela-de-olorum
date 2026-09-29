@@ -4470,6 +4470,8 @@ function BankAccountsSection() {
   const [showLedgerPeriodFilters, setShowLedgerPeriodFilters] = useState(false);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
   const [accountLabels, setAccountLabels] = useState<Record<string, string>>({});
+  const [archivedAccounts, setArchivedAccounts] = useState<string[]>([]);
+  const [updatingAccountVisibility, setUpdatingAccountVisibility] = useState<string | null>(null);
   const [editingAccountLabel, setEditingAccountLabel] = useState<string | null>(null);
   const [accountLabelDraft, setAccountLabelDraft] = useState("");
   const [savingAccountLabel, setSavingAccountLabel] = useState(false);
@@ -4680,6 +4682,37 @@ function BankAccountsSection() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/finance/account-visibility")
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((data) => { if (active && Array.isArray(data?.archived)) setArchivedAccounts(data.archived); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  async function changeAccountVisibility(accountName: string, archived: boolean) {
+    if (updatingAccountVisibility) return;
+    if (archived && !window.confirm(`Arquivar ${accountLabels[accountName] || accountName}? O histórico e os saldos serão preservados. Você poderá restaurar a conta neste filtro.`)) return;
+    setUpdatingAccountVisibility(accountName);
+    try {
+      const response = await fetch("/api/finance/account-visibility", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountName, archived }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Não foi possível atualizar a conta.");
+      setArchivedAccounts(data.archived);
+      if (archived && selectedAccount === accountName) setSelectedAccount("");
+      if (!archived) setSelectedAccount(accountName);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Não foi possível atualizar a conta.");
+    } finally {
+      setUpdatingAccountVisibility(null);
+    }
+  }
+
   async function saveAccountLabel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingAccountLabel || savingAccountLabel) return;
@@ -4866,7 +4899,7 @@ function BankAccountsSection() {
     [accounts]
   );
 
-  const selectableAccounts = useMemo(() => {
+  const allAccounts = useMemo(() => {
     const names = new Set<string>();
 
     for (const account of accounts || []) {
@@ -4891,6 +4924,8 @@ function BankAccountsSection() {
       .filter((name) => name !== "Conta PDV")
       .sort((left, right) => left.localeCompare(right, "pt-BR"));
   }, [accounts, bankAccounts, cashRegisters]);
+  const selectableAccounts = useMemo(() => allAccounts.filter((name) => !archivedAccounts.includes(name)), [allAccounts, archivedAccounts]);
+  const archivedSelectableAccounts = useMemo(() => allAccounts.filter((name) => archivedAccounts.includes(name)), [allAccounts, archivedAccounts]);
 
   useEffect(() => {
     if (selectableAccounts.length === 0) {
@@ -5738,8 +5773,38 @@ function BankAccountsSection() {
                       >
                         <Pencil size={14} />
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void changeAccountVisibility(accountName, true)}
+                        disabled={updatingAccountVisibility !== null}
+                        aria-label={`Arquivar ${accountLabels[accountName] || accountName}`}
+                        title="Arquivar sem apagar o histórico"
+                        className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   ))}
+                  {archivedSelectableAccounts.length > 0 && (
+                    <div className="mt-2 border-t border-[#E9E1D2] pt-2">
+                      <p className="px-3 py-1 text-xs font-semibold text-[#8A8172]">Arquivadas — histórico preservado</p>
+                      {archivedSelectableAccounts.map((accountName) => (
+                        <div key={accountName} className="flex items-center gap-1 rounded-2xl px-3 py-2 text-sm text-[#8A8172]">
+                          <span className="min-w-0 flex-1 truncate" title={accountName}>{accountLabels[accountName] || accountName}</span>
+                          <button
+                            type="button"
+                            onClick={() => void changeAccountVisibility(accountName, false)}
+                            disabled={updatingAccountVisibility !== null}
+                            aria-label={`Restaurar ${accountLabels[accountName] || accountName}`}
+                            title="Restaurar para consultar o histórico"
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#2F5BFF] hover:bg-[#EEF3FF] disabled:opacity-50"
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </DraggablePopover>
               ) : null}
             </div>
