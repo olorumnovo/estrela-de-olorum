@@ -128,6 +128,13 @@ const submenuByHref = {
         icon: HandCoins,
       },
       {
+        id: "cobrancas-bancarias",
+        label: "Cobranças Bancárias",
+        href: "",
+        icon: FileText,
+        disabled: true,
+      },
+      {
         id: "relatorios",
         label: "Relatórios",
         href: "/dashboard/relatorios",
@@ -530,6 +537,15 @@ export default function Sidebar() {
                     <div className="space-y-1.5">
                       {activeSubmenu.items.map((subItem) => {
                         const Icon = subItem.icon;
+                        if ("disabled" in subItem && subItem.disabled) {
+                          return (
+                            <div key={subItem.id} aria-disabled="true" className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3.5 py-3 text-[13px] text-white/45">
+                              <Icon size={18} className="shrink-0" />
+                              <span className="min-w-0 flex-1 font-medium">{subItem.label}</span>
+                              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold text-emerald-300">Em breve</span>
+                            </div>
+                          );
+                        }
                         const subActive =
                           expandedMenuHref === "/dashboard/financeiro"
                             ? subItem.id === "relatorios"
@@ -684,6 +700,15 @@ export default function Sidebar() {
                         <div className="grid gap-1 border-t border-slate-100 bg-white p-2">
                           {submenu.items.map((subItem) => {
                             const SubIcon = subItem.icon;
+                            if ("disabled" in subItem && subItem.disabled) {
+                              return (
+                                <div key={`mobile-sub-${subItem.id}`} aria-disabled="true" className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-400">
+                                  <SubIcon size={17} className="shrink-0" />
+                                  <span className="min-w-0 flex-1">{subItem.label}</span>
+                                  <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">Em breve</span>
+                                </div>
+                              );
+                            }
                             const subActive = isSubItemActive(
                               item.href as MenuHrefWithSubmenu,
                               subItem
