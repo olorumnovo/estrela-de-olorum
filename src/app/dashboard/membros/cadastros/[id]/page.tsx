@@ -1,6 +1,7 @@
 import CadastroDetailView from "@/components/members/CadastroDetailView";
 import records from "@/data/cadastros-fornecedores-detalhes.json";
 import { prisma } from "@/lib/prisma";
+import { readAnnualRecurrence } from "@/lib/finance/member-annual-recurrence";
 import { requireCurrentUserFromCookies } from "@/lib/server-auth";
 
 type Props = {
@@ -130,6 +131,7 @@ export default async function CadastroDetalhePage({ params }: Props) {
       <CadastroDetailView
         record={{
         id: member.id,
+        annualRecurrenceEnabled: readAnnualRecurrence(member.observacoes)?.enabled || false,
         code: textValue(extended.code),
         name: member.nome,
         fantasy: textValue(extended.fantasy),

@@ -4,6 +4,7 @@ import { processReceivableWhatsappNotifications } from "@/lib/finance/receivable
 import { claimChargeSendSlot, getChargeAutomationState } from "@/lib/finance/receivable-charge-automation";
 import { hasPendingManualCharge, processNextManualCharge } from "@/lib/finance/manual-charge-queue";
 import { getErrorMessage } from "@/lib/errors";
+import { processAnnualMemberRecurrences } from "@/lib/finance/member-annual-recurrence";
 import { prisma } from "@/lib/prisma";
 import { ApiResponse } from "@/lib/response";
 
@@ -27,12 +28,15 @@ export async function GET(req: NextRequest) {
       return ApiResponse.error("Templo ativo não encontrado.", 404);
     }
 
-    const state = await getChargeAutomationState(temple.id);
-    const hasManual = await hasPendingManualCharge(temple.id);
-    if (!state.enabled && !hasManual) return ApiResponse.success({ success: true, enabled: false, queued: 0 });
     const localHour = Number(new Intl.DateTimeFormat("en-GB", {
       timeZone: "America/Sao_Paulo", hour: "2-digit", hourCycle: "h23",
     }).format(new Date()));
+    // The existing 15-minute cron also renews enabled member recurrences once a day in Nov/Dec.
+    const annualRecurrence = localHour === 9 ? await processAnnualMemberRecurrences(temple.id) : null;
+
+    const state = await getChargeAutomationState(temple.id);
+    const hasManual = await hasPendingManualCharge(temple.id);
+    if (!state.enabled && !hasManual) return ApiResponse.success({ success: true, enabled: false, queued: 0, annualRecurrence });
     if (localHour < 9 || localHour >= 18) {
       return ApiResponse.success({ success: true, enabled: true, message: "Fora do horário de envio (09h–18h)." });
     }

@@ -17,6 +17,7 @@ import FloatingDraggablePopover from "@/components/ui/floating-draggable-popover
 
 type CadastroDetailRecord = {
   id: string;
+  annualRecurrenceEnabled?: boolean;
   code: string;
   name: string;
   fantasy: string;
@@ -202,6 +203,7 @@ export default function CadastroDetailView({ record }: Props) {
   const [editRecord, setEditRecord] = useState(record);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [recurrenceBusy, setRecurrenceBusy] = useState(false);
   const [hierarchyOptions, setHierarchyOptions] = useState<string[]>([]);
   const displayRecord = isEditing ? editRecord : currentRecord;
   const isInactiveRecord = normalizeStatus(displayRecord.status) === "inativo";
@@ -527,6 +529,30 @@ export default function CadastroDetailView({ record }: Props) {
     setIsEditing(false);
   }
 
+  async function toggleAnnualRecurrence() {
+    const enabled = !currentRecord.annualRecurrenceEnabled;
+    if (!window.confirm(enabled
+      ? `Ativar recorrência para ${currentRecord.name}? Serão criadas as 12 mensalidades do próximo ano em Contas a Receber, com os mesmos nomes e valores do ano atual. Contas existentes serão mantidas.`
+      : `Pausar a recorrência de ${currentRecord.name}? As contas futuras já criadas serão mantidas.`)) return;
+    setRecurrenceBusy(true);
+    try {
+      const response = await fetch(`/api/members/${currentRecord.id}/annual-recurrence`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Não foi possível alterar a recorrência.");
+      const next = { ...currentRecord, annualRecurrenceEnabled: enabled };
+      setCurrentRecord(next);
+      setEditRecord(next);
+      router.refresh();
+      window.alert(enabled ? `${result.created} conta(s) criada(s) para ${result.year}; ${result.skipped} já existente(s).` : result.message);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Falha ao alterar a recorrência.");
+    } finally {
+      setRecurrenceBusy(false);
+    }
+  }
+
   return (
     <main className="min-h-[calc(100vh-116px)] bg-white px-5 py-5 text-[#171717] sm:px-6 lg:px-8">
       <section className="bg-white">
@@ -551,6 +577,14 @@ export default function CadastroDetailView({ record }: Props) {
           </div>
 
           <div className="flex flex-wrap items-center gap-5 text-[15px] text-[#171717]">
+            <button
+              type="button"
+              onClick={() => void toggleAnnualRecurrence()}
+              disabled={recurrenceBusy || isEditing || isInactiveRecord}
+              className="inline-flex items-center gap-2 rounded-full border border-[#E4D8C2] px-4 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {recurrenceBusy ? "Aguarde..." : currentRecord.annualRecurrenceEnabled ? "Pausar recorrência" : "Ativar recorrência"}
+            </button>
             {isEditing ? (
               <>
                 <button

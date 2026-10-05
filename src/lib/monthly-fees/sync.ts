@@ -1,4 +1,4 @@
-import { PaymentStatus, Prisma } from "@prisma/client";
+import { PaymentStatus } from "@prisma/client";
 
 import { resolveTransactionSourcePages } from "@/lib/finance/payables";
 import { prisma } from "@/lib/prisma";
@@ -138,22 +138,10 @@ export async function syncTempleMonthlyFees(templeId: string): Promise<SyncTempl
       templeId,
       deletedAt: null,
       tipo: "INCOME",
-      externalSource: {
-        not: "monthly_fee",
-      },
+      externalSource: { notIn: ["monthly_fee", "member_annual_recurrence"] },
       OR: [
-        {
-          descricao: {
-            contains: "mensalidade",
-            mode: "insensitive",
-          },
-        },
-        {
-          observacoes: {
-            contains: "mensalidade",
-            mode: "insensitive",
-          },
-        },
+        { descricao: { contains: "mensalidade", mode: "insensitive" } },
+        { observacoes: { contains: "mensalidade", mode: "insensitive" } },
       ],
     },
     select: {
@@ -253,6 +241,11 @@ export async function syncTempleMonthlyFees(templeId: string): Promise<SyncTempl
   const today = new Date();
   const currentMonthDate = new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0);
   const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1, 12, 0, 0, 0);
+  const annualAccounts = await prisma.financialTransaction.findMany({
+    where: { templeId, deletedAt: null, externalSource: "member_annual_recurrence" },
+    select: { externalId: true },
+  });
+  const annualAccountIds = new Set(annualAccounts.map((account) => account.externalId));
 
   for (const template of latestFeeByMember.values()) {
     const dueDay = template.vencimento.getDate();
@@ -261,6 +254,9 @@ export async function syncTempleMonthlyFees(templeId: string): Promise<SyncTempl
       const competencia = formatCompetence(targetDate);
       const dueDate = buildDueDate(targetDate.getFullYear(), targetDate.getMonth(), dueDay);
       const status = resolveFeeStatus(PaymentStatus.PENDING, dueDate, null);
+
+      const annualId = `${template.memberId}:${targetDate.getFullYear()}:${String(targetDate.getMonth() + 1).padStart(2, "0")}`;
+      if (annualAccountIds.has(annualId)) continue;
 
       await prisma.monthlyFee.upsert({
         where: {
@@ -313,6 +309,9 @@ export async function syncTempleMonthlyFees(templeId: string): Promise<SyncTempl
     if (!fee.member || fee.member.status !== "ACTIVE") {
       continue;
     }
+
+    const annualId = `${fee.memberId}:${fee.vencimento.getUTCFullYear()}:${String(fee.vencimento.getUTCMonth() + 1).padStart(2, "0")}`;
+    if (annualAccountIds.has(annualId)) continue;
 
     const normalizedStatus = resolveFeeStatus(fee.status, fee.vencimento, fee.pagamentoEm);
 

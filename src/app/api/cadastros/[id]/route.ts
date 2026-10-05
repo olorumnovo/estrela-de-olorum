@@ -3,6 +3,7 @@ import { Gender, MemberStatus } from "@prisma/client";
 
 import { requireAuth } from "@/lib/auth";
 import { getErrorMessage } from "@/lib/errors";
+import { readAnnualRecurrence } from "@/lib/finance/member-annual-recurrence";
 import { prisma } from "@/lib/prisma";
 import { ApiResponse } from "@/lib/response";
 import { serialize } from "@/modules/shared";
@@ -83,9 +84,11 @@ function toStatus(value: unknown) {
   return MemberStatus.ACTIVE;
 }
 
-function packObservations(body: Record<string, unknown>) {
+function packObservations(body: Record<string, unknown>, previousObservations?: string | null) {
   const observations = String(body.observations || "").trim();
+  const annualRecurrence = readAnnualRecurrence(previousObservations || null);
   const extended = {
+    ...(annualRecurrence ? { annualRecurrence } : {}),
     code: body.code || "",
     fantasy: body.fantasy || "",
     contactNotes: body.contactNotes || "",
@@ -222,6 +225,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       resolveSpiritualEntity(user.templeId, body.motherBack, "mae-costas"),
     ]);
 
+    const previousMember = await prisma.member.findFirst({ where: { id, templeId: user.templeId }, select: { observacoes: true } });
     const data = {
       templeId: user.templeId,
       nome: String(body.name || "").trim(),
@@ -244,7 +248,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       bairro: emptyToNull(body.neighborhood),
       cidade: emptyToNull(body.city),
       estado: emptyToNull(body.state),
-      observacoes: packObservations(body),
+      observacoes: packObservations(body, previousMember?.observacoes),
       status: nextStatus,
       hierarchyId: hierarchy?.id || null,
       fatherEntity1Id: fatherFront?.id || null,
