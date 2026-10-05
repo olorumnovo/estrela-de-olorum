@@ -1451,13 +1451,13 @@ function FinanceiroContent() {
             onClick={() => setPayingRecord(null)}
             className="flex-1 cursor-default"
           />
-          <section className="flex h-full w-full max-w-[920px] flex-col bg-white shadow-2xl">
-            <div className="flex items-center justify-between px-10 py-10">
-              <h2 className="text-[24px] font-semibold text-[#171717]">Pagar contas selecionadas</h2>
+          <section className="flex h-[100dvh] w-full max-w-[920px] flex-col overflow-y-auto overscroll-contain bg-white shadow-2xl md:h-full md:overflow-visible">
+            <div className="flex items-center justify-between gap-3 px-5 py-6 md:px-10 md:py-10">
+              <h2 className="text-xl font-semibold text-[#171717] md:text-[24px]">Pagar contas selecionadas</h2>
               <button
                 type="button"
                 onClick={() => setPayingRecord(null)}
-                className="inline-flex items-center gap-3 text-[14px] text-[#171717]"
+                className="inline-flex shrink-0 items-center gap-3 text-[14px] text-[#171717]"
               >
                 fechar
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEE4] text-[#6E675C]">
@@ -1466,7 +1466,7 @@ function FinanceiroContent() {
               </button>
             </div>
 
-            <form onSubmit={submitPayablePayment} className="flex flex-1 flex-col px-10 pb-8">
+            <form onSubmit={submitPayablePayment} className="flex flex-1 flex-col px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] md:px-10 md:pb-8">
               <div className="grid gap-5 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm text-[#6E675C]">Origem</span>
@@ -1697,13 +1697,13 @@ function FinanceiroContent() {
             onClick={() => setReceivingRecord(null)}
             className="flex-1 cursor-default"
           />
-          <section className="flex h-full w-full max-w-[920px] flex-col bg-white shadow-2xl">
-            <div className="flex items-center justify-between px-10 py-10">
-              <h2 className="text-[24px] font-semibold text-[#171717]">Receber contas selecionadas</h2>
+          <section className="flex h-[100dvh] w-full max-w-[920px] flex-col overflow-y-auto overscroll-contain bg-white shadow-2xl md:h-full md:overflow-visible">
+            <div className="flex items-center justify-between gap-3 px-5 py-6 md:px-10 md:py-10">
+              <h2 className="text-xl font-semibold text-[#171717] md:text-[24px]">Receber contas selecionadas</h2>
               <button
                 type="button"
                 onClick={() => setReceivingRecord(null)}
-                className="inline-flex items-center gap-3 text-[14px] text-[#171717]"
+                className="inline-flex shrink-0 items-center gap-3 text-[14px] text-[#171717]"
               >
                 fechar
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#F3EEE4] text-[#6E675C]">
@@ -1712,7 +1712,7 @@ function FinanceiroContent() {
               </button>
             </div>
 
-            <form onSubmit={submitReceivableReceipt} className="flex flex-1 flex-col px-10 pb-8">
+            <form onSubmit={submitReceivableReceipt} className="flex flex-1 flex-col px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] md:px-10 md:pb-8">
               <div className="grid gap-5 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm text-[#6E675C]">Origem</span>
@@ -3935,15 +3935,15 @@ function PayablesListSection({
             onClick={() => setShowBulkSettlementModal(false)}
             className="flex-1 cursor-default"
           />
-          <section className="flex h-full w-full max-w-[920px] flex-col bg-white shadow-2xl">
-            <div className="flex items-center justify-between px-7 py-8">
-              <h2 className="text-[24px] font-semibold text-[#171717]">
+          <section className="flex h-[100dvh] w-full max-w-[920px] flex-col overflow-y-auto overscroll-contain bg-white shadow-2xl md:h-full md:overflow-visible">
+            <div className="flex items-center justify-between gap-3 px-5 py-6 md:px-7 md:py-8">
+              <h2 className="text-xl font-semibold text-[#171717] md:text-[24px]">
                 {transactionType === "EXPENSE" ? "Pagar contas selecionadas" : "Receber contas selecionadas"}
               </h2>
               <button
                 type="button"
                 onClick={() => setShowBulkSettlementModal(false)}
-                className="inline-flex items-center gap-2 text-[14px] text-[#171717]"
+                className="inline-flex shrink-0 items-center gap-2 text-[14px] text-[#171717]"
               >
                 fechar
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#F3EEE4] text-[#6E675C]">
@@ -3952,7 +3952,7 @@ function PayablesListSection({
               </button>
             </div>
 
-            <div className="flex flex-1 flex-col overflow-y-auto px-7 pb-7">
+            <div className="flex flex-1 flex-col px-5 pb-[calc(1.75rem+env(safe-area-inset-bottom))] md:min-h-0 md:overflow-y-auto md:px-7 md:pb-7">
               <div className="grid gap-5 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm text-[#6E675C]">
