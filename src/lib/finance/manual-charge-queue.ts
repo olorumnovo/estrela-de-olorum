@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { sendFinanceiroText } from "@/lib/evolution/financeiro";
+import { checkFinanceiroWhatsappNumber, sendFinanceiroText } from "@/lib/evolution/financeiro";
 import { prisma } from "@/lib/prisma";
 import { normalizeSearchText } from "@/lib/search";
 import { getReceivableWhatsappTemplates, renderReceivableWhatsappTemplate } from "@/lib/finance/receivable-whatsapp-templates";
@@ -170,6 +170,11 @@ export async function processNextManualCharge(templeId: string) {
     const phone = String(member?.whatsapp || member?.telefone || "").replace(/\D/g, "");
     if (!transaction || Number(transaction.valor) - Number(transaction.amountPaid || 0) <= 0 || !member || !phone) {
       await finishManualJob(templeId, job.id, "SKIPPED", "Conta quitada, membro inativo ou WhatsApp indisponível.");
+      return { status: "SKIPPED" as const };
+    }
+    const whatsappNumber = await checkFinanceiroWhatsappNumber(phone);
+    if (whatsappNumber?.exists === false) {
+      await finishManualJob(templeId, job.id, "SKIPPED", "Número não encontrado no WhatsApp. Confira o telefone do cadastro antes de enfileirar novamente.");
       return { status: "SKIPPED" as const };
     }
     const state = await getChargeAutomationState(templeId);

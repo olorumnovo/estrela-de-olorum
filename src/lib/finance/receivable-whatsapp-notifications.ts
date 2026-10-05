@@ -1,6 +1,6 @@
 import { PaymentStatus, TransactionType } from "@prisma/client";
 
-import { sendFinanceiroText } from "@/lib/evolution/financeiro";
+import { checkFinanceiroWhatsappNumber, sendFinanceiroText } from "@/lib/evolution/financeiro";
 import { prisma } from "@/lib/prisma";
 import { getChargeAutomationState } from "@/lib/finance/receivable-charge-automation";
 import {
@@ -377,6 +377,16 @@ export async function processReceivableWhatsappNotifications(args: {
         select: { valor: true, amountPaid: true },
       });
       if (!fresh || openAmount(fresh.valor, fresh.amountPaid) <= 0) continue;
+      try {
+        const whatsappNumber = await checkFinanceiroWhatsappNumber(candidate.phone);
+        if (whatsappNumber?.exists === false) {
+          candidate.skippedReason = "Número não encontrado no WhatsApp. Confira o cadastro do membro.";
+          continue;
+        }
+      } catch (error) {
+        candidate.skippedReason = error instanceof Error ? error.message : "Não foi possível verificar o WhatsApp.";
+        continue;
+      }
       const currentMessage = buildMessage({
         ...candidate,
         transaction: { ...candidate.transaction, valor: fresh.valor, amountPaid: fresh.amountPaid },

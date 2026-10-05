@@ -145,6 +145,11 @@ function normalizeWhatsappNumber(value?: string) {
   return raw.replace(/\D/g, "");
 }
 
+export function normalizeFinanceiroSendNumber(value: string) {
+  const normalized = normalizeWhatsappNumber(value).replace(/^0+/, "");
+  return /^\d{10,11}$/.test(normalized) ? `55${normalized}` : normalized;
+}
+
 function formatTime(value?: string | number) {
   if (!value) {
     return "";
@@ -478,13 +483,7 @@ export async function checkFinanceiroWhatsappNumber(
   channel: EvolutionWhatsappChannel = "financeiro"
 ) {
   const { instance } = getConfig(channel);
-  let normalizedNumber = number.replace(/\D/g, "").replace(/^0+/, "");
-  if (
-    !normalizedNumber.startsWith("55") &&
-    (normalizedNumber.length === 10 || normalizedNumber.length === 11)
-  ) {
-    normalizedNumber = `55${normalizedNumber}`;
-  }
+  const normalizedNumber = normalizeFinanceiroSendNumber(number);
   const data = await evolutionRequest<
     Array<{ jid?: string; exists?: boolean; number?: string; name?: string }>
   >(`/chat/whatsappNumbers/${encodeURIComponent(instance)}`, {
@@ -502,11 +501,12 @@ export async function sendFinanceiroText(
 ) {
   const { instance } = getConfig(channel);
   const path = `/message/sendText/${encodeURIComponent(instance)}`;
+  const sendNumber = normalizeFinanceiroSendNumber(number);
 
   try {
     return await evolutionRequest(path, {
       body: {
-        number,
+        number: sendNumber,
         options: {
           delay: 1200,
           presence: "composing",
@@ -521,7 +521,7 @@ export async function sendFinanceiroText(
   } catch (error) {
     return evolutionRequest(path, {
       body: {
-        number,
+        number: sendNumber,
         text,
         options: {
           delay: 1200,

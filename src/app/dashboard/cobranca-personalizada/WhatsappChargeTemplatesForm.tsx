@@ -74,6 +74,7 @@ export default function WhatsappChargeTemplatesForm({
   const [enabled, setEnabled] = useState(false);
   const [intervalMinutes, setIntervalMinutes] = useState(5);
   const [repeatDays, setRepeatDays] = useState(0);
+  const [nextSendAt, setNextSendAt] = useState<string | null>(null);
   const [savingFrequency, setSavingFrequency] = useState(false);
   const [loadingState, setLoadingState] = useState(true);
   const [changingState, setChangingState] = useState(false);
@@ -101,6 +102,7 @@ export default function WhatsappChargeTemplatesForm({
         setEnabled(data.enabled === true);
         setIntervalMinutes(data.intervalMinutes || 5);
         setRepeatDays(data.repeatDays ?? 0);
+        setNextSendAt(data.nextSendAt || null);
       })
       .catch((error) => setFeedback(error.message))
       .finally(() => setLoadingState(false));
@@ -142,6 +144,7 @@ export default function WhatsappChargeTemplatesForm({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Não foi possível salvar a periodicidade.");
+      setNextSendAt(data.nextSendAt || null);
       setFeedback("Periodicidade salva. O cron externo continua chamando a cada 5 minutos; o sistema respeita o intervalo escolhido.");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Não foi possível salvar a periodicidade.");
@@ -203,6 +206,7 @@ export default function WhatsappChargeTemplatesForm({
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Não foi possível alterar a automação.");
       setEnabled(data.enabled);
+      setNextSendAt(data.nextSendAt || null);
       setFeedback(data.enabled ? "Cobrança automática ativada." : "Cobrança automática pausada.");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Erro ao alterar a automação.");
@@ -253,6 +257,7 @@ export default function WhatsappChargeTemplatesForm({
           <h2 className="text-lg font-bold text-slate-900">Cobrança automática</h2>
           <p className="mt-1 text-sm text-slate-600">{loadingState ? "Consultando estado..." : enabled ? "Ativa — mensagens bloqueadas para edição" : "Pausada — você pode editar as mensagens"}</p>
           <p className="mt-1 text-xs text-slate-500">Um envio por vez, entre 09h e 18h (São Paulo). A fila manual continua funcionando mesmo se a cobrança automática estiver pausada.</p>
+          {nextSendAt && <p className="mt-1 text-xs font-semibold text-slate-700">Próxima tentativa permitida: {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(nextSendAt))} (horário de São Paulo). Com intervalo de {intervalMinutes} minutos, a fila pode levar mais tempo para terminar.</p>}
           <p className="mt-1 text-xs text-amber-700">Agendamento externo: configure uma chamada GET autenticada a cada 5 minutos no cron-job.org.</p>
         </div>
         <button type="button" onClick={() => void changeAutomation()} disabled={loadingState || changingState}
