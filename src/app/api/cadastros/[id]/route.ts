@@ -7,6 +7,7 @@ import { readAnnualRecurrence } from "@/lib/finance/member-annual-recurrence";
 import { prisma } from "@/lib/prisma";
 import { ApiResponse } from "@/lib/response";
 import { serialize } from "@/modules/shared";
+import { syncMemberReceivableName } from "@/modules/members/member.service";
 
 const EXTENDED_MARKER_START = "\n\n[CADASTRO_EXTENDIDO_JSON]";
 const EXTENDED_MARKER_END = "[/CADASTRO_EXTENDIDO_JSON]";
@@ -257,29 +258,22 @@ export async function PUT(req: NextRequest, { params }: Params) {
       motherEntity2Id: motherBack?.id || null,
     };
 
-    const existing = await prisma.member.findFirst({
-      where: {
-        id,
-        templeId: user.templeId,
-      },
-      select: {
-        id: true,
-      },
-    });
+    const member = await prisma.$transaction(async (tx) => {
+      const existing = await tx.member.findFirst({
+        where: { id, templeId: user.templeId },
+        select: { nome: true },
+      });
+      if (!existing) {
+        return tx.member.create({ data: { id, ...data } });
+      }
 
-    const member = existing
-      ? await prisma.member.update({
-          where: {
-            id,
-          },
-          data,
-        })
-      : await prisma.member.create({
-          data: {
-            id,
-            ...data,
-          },
-        });
+      const updated = await tx.member.update({
+        where: { id_templeId: { id, templeId: user.templeId } },
+        data,
+      });
+      await syncMemberReceivableName(tx, user.templeId, id, existing.nome, updated.nome);
+      return updated;
+    }, { timeout: 15000 });
 
     return ApiResponse.success(serialize(member));
   } catch (error) {

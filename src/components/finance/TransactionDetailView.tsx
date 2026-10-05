@@ -155,19 +155,6 @@ function amountNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function parseRecurrence(description: string, notes: string | null) {
-  const match = description.trim().match(/^(.*)\s+\((\d+)\/(\d+)\)$/);
-
-  if (!match || !(notes || "").toLowerCase().includes("recorrência")) {
-    return null;
-  }
-
-  return {
-    current: Number(match[2]),
-    total: Number(match[3]),
-  };
-}
-
 function statusLabel(status: string, type: "INCOME" | "EXPENSE") {
   if (status === "PAID") {
     return type === "INCOME" ? "Recebida" : "Paga";
@@ -300,16 +287,6 @@ export default function TransactionDetailView({ transaction, categories }: Props
     setSaving(true);
 
     try {
-      const recurrence = parseRecurrence(
-        currentTransaction.descricao,
-        currentTransaction.observacoes
-      );
-      const applyFutureRecurrence = window.confirm(
-        recurrence
-          ? `Esta conta faz parte de uma recorrência (${recurrence.current}/${recurrence.total}).\n\nDeseja aplicar esta alteração também nas recorrências futuras?\n\nOK = alterar este mês e os meses futuros\nCancelar = alterar somente este mês`
-          : "Deseja aplicar esta alteração também nas recorrências futuras, caso existam?\n\nOK = alterar este mês e os meses futuros\nCancelar = alterar somente este mês"
-      );
-
       const response = await fetch(`/api/finance/transactions/${currentTransaction.id}`, {
         method: "PUT",
         headers: {
@@ -329,7 +306,6 @@ export default function TransactionDetailView({ transaction, categories }: Props
           pagamentoEm: editForm.pagamentoEm,
           comprovante: editForm.comprovante,
           observacoes: editForm.observacoes,
-          applyFutureRecurrence,
         }),
       });
       const data = await response.json().catch(() => null);

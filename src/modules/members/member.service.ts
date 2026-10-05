@@ -235,6 +235,84 @@ function toMemberData(data: MemberInput) {
   } satisfies Prisma.MemberUncheckedUpdateInput;
 }
 
+export async function syncMemberReceivableName(
+  tx: Prisma.TransactionClient,
+  templeId: string,
+  memberId: string,
+  oldName: string,
+  newName: string
+) {
+  if (oldName === newName) return;
+
+  const monthlyFees = await tx.monthlyFee.findMany({
+    where: { templeId, memberId },
+    select: { id: true },
+  });
+  if (monthlyFees.length) {
+    await tx.financialTransaction.updateMany({
+      where: {
+        templeId,
+        deletedAt: null,
+        tipo: "INCOME",
+        externalSource: "monthly_fee",
+        externalId: { in: monthlyFees.map((fee) => fee.id) },
+      },
+      data: { centroCusto: newName },
+    });
+  }
+
+  await tx.financialTransaction.updateMany({
+    where: {
+      templeId,
+      deletedAt: null,
+      tipo: "INCOME",
+      externalSource: "member_annual_recurrence",
+      externalId: { startsWith: `${memberId}:` },
+    },
+    data: { centroCusto: newName },
+  });
+
+  const manualReceivables = {
+    templeId,
+    deletedAt: null,
+    tipo: "INCOME" as const,
+    externalSource: null,
+    centroCusto: { equals: oldName, mode: "insensitive" as const },
+  };
+  const [otherMembers, sameNameSuppliers] = await Promise.all([
+    tx.member.count({
+      where: {
+        templeId,
+        id: { not: memberId },
+        deletedAt: null,
+        nome: { equals: oldName, mode: "insensitive" },
+      },
+    }),
+    tx.financialSupplier.count({
+      where: {
+        templeId,
+        deletedAt: null,
+        nome: { equals: oldName, mode: "insensitive" },
+      },
+    }),
+  ]);
+
+  if (otherMembers || sameNameSuppliers) {
+    const ambiguousAccounts = await tx.financialTransaction.count({ where: manualReceivables });
+    if (ambiguousAccounts) {
+      throw new Error(
+        `Existem ${ambiguousAccounts} conta(s) a receber sem vínculo exclusivo com este cadastro e outro membro/fornecedor com o mesmo nome. O nome não foi alterado para evitar modificar contas de terceiros.`
+      );
+    }
+    return;
+  }
+
+  await tx.financialTransaction.updateMany({
+    where: manualReceivables,
+    data: { centroCusto: newName },
+  });
+}
+
 export class MemberService {
   async listarOpcoesFormulario(templeId: string) {
     const orderBy = {
@@ -550,42 +628,49 @@ export class MemberService {
         : { id }),
     };
 
-    try {
-      return await prisma.member.update({
+    const update = async (tx: Prisma.TransactionClient, legacy: boolean) => {
+      const previous = await tx.member.findUniqueOrThrow({
+        where,
+        select: { nome: true },
+      });
+      if (legacy) {
+        const member = await tx.member.update({
+          where,
+          data: toMemberData(data),
+          include: memberLegacyInclude,
+        });
+        if (templeId) {
+          await syncMemberReceivableName(tx, templeId, id, previous.nome, member.nome);
+        }
+        return withEmptyMultiRelations(member);
+      }
+
+      const member = await tx.member.update({
         where,
         data: {
           ...toMemberData(data),
           memberHierarchies: {
             deleteMany: {},
-            create:
-              buildHierarchyRelationItems(
-                hierarchyIds
-              ),
+            create: buildHierarchyRelationItems(hierarchyIds),
           },
           memberClassifications: {
             deleteMany: {},
-            create:
-              buildClassificationRelationItems(
-                classificationIds
-              ),
+            create: buildClassificationRelationItems(classificationIds),
           },
         },
         include: memberInclude,
       });
-    } catch (error) {
-      if (!isMissingMultiRelationsError(error)) {
-        throw error;
+      if (templeId) {
+        await syncMemberReceivableName(tx, templeId, id, previous.nome, member.nome);
       }
+      return member;
+    };
 
-      const member = await prisma.member.update({
-        where,
-        data: {
-          ...toMemberData(data),
-        },
-        include: memberLegacyInclude,
-      });
-
-      return withEmptyMultiRelations(member);
+    try {
+      return await prisma.$transaction((tx) => update(tx, false), { timeout: 15000 });
+    } catch (error) {
+      if (!isMissingMultiRelationsError(error)) throw error;
+      return prisma.$transaction((tx) => update(tx, true), { timeout: 15000 });
     }
   }
 

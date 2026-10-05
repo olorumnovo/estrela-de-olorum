@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { PaymentMethod, PaymentStatus, Prisma, TransactionType } from "@prisma/client";
+import { PaymentMethod, PaymentStatus, TransactionType } from "@prisma/client";
 
 import { requireAuth } from "@/lib/auth";
 import { getErrorMessage } from "@/lib/errors";
@@ -47,26 +47,6 @@ function recurrenceBaseDescription(value: string | null | undefined) {
   }
 
   return parseRecurrence(value)?.baseDescription || value.trim();
-}
-
-function addMonthsKeepingDay(date: Date, months: number) {
-  const nextDate = new Date(date);
-  const originalDay = nextDate.getUTCDate();
-
-  nextDate.setUTCMonth(nextDate.getUTCMonth() + months, 1);
-  const lastDayOfTargetMonth = new Date(
-    Date.UTC(nextDate.getUTCFullYear(), nextDate.getUTCMonth() + 1, 0)
-  ).getUTCDate();
-  nextDate.setUTCDate(Math.min(originalDay, lastDayOfTargetMonth));
-
-  return nextDate;
-}
-
-function diffMonths(from: Date, to: Date) {
-  return (
-    (to.getUTCFullYear() - from.getUTCFullYear()) * 12 +
-    (to.getUTCMonth() - from.getUTCMonth())
-  );
 }
 
 function getTodayDateOnlyStart() {
@@ -160,165 +140,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       comprovante: body.comprovante || null,
       observacoes: body.observacoes || null,
     };
-    const applyFutureRecurrence =
-      body.applyFutureRecurrence === true ||
-      body.applyFutureRecurrence === "true";
-    const recurrence = parseRecurrence(existing.descricao);
-    const hasRecurrenceNote = (existing.observacoes || "")
-      .toLowerCase()
-      .includes("recorrência");
-
-    if (applyFutureRecurrence) {
-      const futureUpdates: Prisma.PrismaPromise<unknown>[] = [];
-
-      if (recurrence && hasRecurrenceNote) {
-        const recurringTransactions = await prisma.financialTransaction.findMany({
-          where: {
-            templeId: user.templeId,
-            id: { not: id },
-            tipo: existing.tipo,
-            deletedAt: null,
-            externalSource: null,
-            centroCusto: existing.centroCusto,
-            descricao: {
-              startsWith: `${recurrence.baseDescription} (`,
-            },
-            observacoes: {
-              contains: "Recorrência",
-            },
-          },
-          select: {
-            id: true,
-            descricao: true,
-            status: true,
-          },
-        });
-
-        recurringTransactions
-          .map((item) => ({
-            ...item,
-            recurrence: parseRecurrence(item.descricao),
-          }))
-          .filter(
-            (item) =>
-              item.recurrence &&
-              item.recurrence.current > recurrence.current &&
-              item.status !== PaymentStatus.PAID &&
-              item.status !== PaymentStatus.CANCELED
-          )
-          .forEach((item) => {
-            const currentIndex = item.recurrence?.current || recurrence.current;
-            const nextDueDate =
-              dueDate && currentIndex >= recurrence.current
-                ? addMonthsKeepingDay(dueDate, currentIndex - recurrence.current)
-                : dueDate;
-            const nextStatus = resolveAutomaticStatus(item.status, nextDueDate);
-
-            futureUpdates.push(prisma.financialTransaction.update({
-              where: { id: item.id },
-              data: {
-                ...updateData,
-                descricao: `${body.descricao} (${currentIndex}/${recurrence.total})`,
-                status: nextStatus,
-                sourcePages: resolveTransactionSourcePages(nextStatus),
-                vencimento: nextDueDate,
-                observacoes: [
-                  body.observacoes,
-                  `Recorrência ${currentIndex}/${recurrence.total}`,
-                ]
-                  .filter(Boolean)
-                  .join("\n"),
-              },
-            }));
-          });
-      } else if (existing.vencimento && existing.centroCusto) {
-        const existingCustomer = normalizeText(existing.centroCusto);
-        const existingBaseDescription = normalizeText(
-          recurrenceBaseDescription(existing.descricao)
-        );
-        const recurringTransactions = await prisma.financialTransaction.findMany({
-          where: {
-            templeId: user.templeId,
-            id: { not: id },
-            tipo: existing.tipo,
-            deletedAt: null,
-            vencimento: {
-              gte: existing.vencimento,
-            },
-            status: {
-              notIn: [PaymentStatus.PAID, PaymentStatus.CANCELED],
-            },
-          },
-          select: {
-            id: true,
-            descricao: true,
-            centroCusto: true,
-            status: true,
-            vencimento: true,
-          },
-        });
-
-        recurringTransactions
-          .filter((item) => {
-            const itemCustomer = normalizeText(item.centroCusto);
-            const itemBaseDescription = normalizeText(
-              recurrenceBaseDescription(item.descricao)
-            );
-            const sameCustomer = itemCustomer === existingCustomer;
-            const sameHistory =
-              itemBaseDescription === existingBaseDescription ||
-              itemBaseDescription.includes(existingBaseDescription) ||
-              existingBaseDescription.includes(itemBaseDescription);
-
-            return sameCustomer && sameHistory;
-          })
-          .forEach((item) => {
-            const parsed = parseRecurrence(item.descricao);
-            const monthOffset =
-              item.vencimento && existing.vencimento
-                ? Math.max(diffMonths(existing.vencimento, item.vencimento), 0)
-                : 0;
-            const nextDueDate = dueDate
-              ? addMonthsKeepingDay(dueDate, monthOffset)
-              : item.vencimento;
-            const nextStatus = resolveAutomaticStatus(item.status, nextDueDate);
-
-            futureUpdates.push(prisma.financialTransaction.update({
-              where: { id: item.id },
-              data: {
-                ...updateData,
-                descricao: parsed
-                  ? `${body.descricao} (${parsed.current}/${parsed.total})`
-                  : body.descricao,
-                status: nextStatus,
-                sourcePages: resolveTransactionSourcePages(nextStatus),
-                vencimento: nextDueDate,
-                observacoes: parsed
-                  ? [
-                      body.observacoes,
-                      `Recorrência ${parsed.current}/${parsed.total}`,
-                    ]
-                      .filter(Boolean)
-                      .join("\n")
-                  : updateData.observacoes,
-              },
-            }));
-          });
-      }
-
-      await prisma.$transaction([
-        prisma.financialTransaction.update({
-          where: { id },
-          data: updateData,
-        }),
-        ...futureUpdates,
-      ]);
-    } else {
-      await prisma.financialTransaction.update({
-        where: { id },
-        data: updateData,
-      });
-    }
+    // A edição da conta nunca deve propagar alterações por nome ou descrição.
+    // Mesmo clientes antigos que ainda enviem applyFutureRecurrence alteram só este ID.
+    await prisma.financialTransaction.update({
+      where: { id, templeId: user.templeId },
+      data: updateData,
+    });
 
     const transaction = await prisma.financialTransaction.findUniqueOrThrow({
       where: { id },

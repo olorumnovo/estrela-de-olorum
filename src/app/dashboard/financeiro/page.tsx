@@ -2774,12 +2774,6 @@ function PayablesListSection({
 
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const applyFutureRecurrence = editingRecord
-      ? window.confirm(
-          "Deseja aplicar esta alteração também nas recorrências futuras?\n\nOK = alterar este mês e os meses futuros\nCancelar = alterar somente este mês"
-        )
-      : false;
-
     const payload = {
       tipo: transactionType,
       descricao: form.descricao,
@@ -2791,7 +2785,6 @@ function PayablesListSection({
       observacoes: form.observacoes,
       recorrenciaAtiva: form.recorrenciaAtiva,
       mesesRecorrencia: form.mesesRecorrencia,
-      applyFutureRecurrence,
     };
 
     const response = await fetch(
