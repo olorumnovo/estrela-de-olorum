@@ -18,7 +18,7 @@ export default function AppLayout({
   return (
     <LayoutDataProvider>
       <PdvRouteGuard>
-        <div className="min-h-screen overflow-x-hidden bg-[#F4F6F8]">
+        <div className="dashboard-theme min-h-screen overflow-x-hidden bg-[#F4F6F8]">
 
           <Suspense fallback={null}>
             <Sidebar />

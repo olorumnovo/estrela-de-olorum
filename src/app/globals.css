@@ -187,3 +187,121 @@
 .sidebar-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* O painel usa cores utilitárias fixas em várias telas. Estas equivalências
+   mantêm o tema claro intacto e adaptam somente superfícies neutras do painel. */
+.dark .dashboard-theme {
+  color-scheme: dark;
+  --dashboard-canvas: #101622;
+  --dashboard-surface: #1a2332;
+  --dashboard-raised: #202d3e;
+  --dashboard-soft: #253348;
+  --dashboard-border: #35435a;
+  --dashboard-text: #f0f4fa;
+  --dashboard-muted: #aebbd0;
+  background-color: var(--dashboard-canvas);
+  color: var(--dashboard-text);
+}
+
+.dark .dashboard-theme :is(
+  [class~="bg-[#F4F6F8]"], [class~="bg-[#F6F7F9]"],
+  [class~="bg-[#F5F7FB]"]
+) { background-color: var(--dashboard-canvas); }
+
+.dark .dashboard-theme :is(
+  .bg-white, [class~="bg-[#FAF8F3]"], [class~="bg-[#FCFBF8]"],
+  [class~="bg-[#FAF7F0]"], [class~="bg-[#FAF7F1]"],
+  [class~="bg-[#F8F8F7]"], [class~="bg-[#F8F6F2]"],
+  [class~="bg-[#FBF8F2]"], [class~="bg-[#F9F9FB]"],
+  [class~="bg-[#F9F7F3]"], [class~="bg-[#FAF8F4]"],
+  [class~="bg-[#FBFCFE]"]
+) { background-color: var(--dashboard-surface); }
+
+.dark .dashboard-theme :is(
+  .bg-slate-50, .bg-slate-100, [class~="bg-[#F7F4EE]"],
+  [class~="bg-[#F7F2E7]"], [class~="bg-[#F3EEE4]"],
+  [class~="bg-[#F4F0E7]"], [class~="bg-[#F5EFE4]"],
+  [class~="bg-[#F4EFE5]"], [class~="bg-[#F2EEE5]"],
+  [class~="bg-[#F8FAFC]"], [class~="bg-[#F4F7FB]"],
+  [class~="bg-[#F8F5EF]"], [class~="bg-[#EFEAE0]"]
+) { background-color: var(--dashboard-raised); }
+
+.dark .dashboard-theme :is(
+  [class~="hover:bg-slate-50"], [class~="hover:bg-slate-100"],
+  [class~="hover:bg-[#FAF8F3]"], [class~="hover:bg-[#F7F4EE]"]
+):hover { background-color: var(--dashboard-soft); }
+
+.dark .dashboard-theme :is(
+  [class~="bg-[#EEF3FF]"], [class~="bg-[#F3F6FF]"],
+  [class~="bg-[#EEF4FF]"], [class~="bg-[#EAF1FF]"],
+  [class~="bg-[#EEF3FD]"], [class~="bg-[#E7F0FF]"],
+  [class~="bg-[#E8EEF7]"], [class~="bg-[#E2EAFF]"],
+  [class~="bg-[#DCE6FF]"], [class~="bg-[#F5F8FF]"]
+) { background-color: #233b60; }
+
+.dark .dashboard-theme :is(
+  [class~="bg-[#FFF6E3]"], [class~="bg-[#FFF8E7]"],
+  [class~="bg-[#FFF3D6]"], [class~="bg-[#FFF1C7]"],
+  [class~="bg-[#FFF9EA]"], [class~="bg-[#FFF7E2]"],
+  [class~="bg-[#F6F1E6]"], [class~="bg-[#F7E7C0]"]
+) { background-color: #3b311e; }
+
+.dark .dashboard-theme :is(
+  .text-slate-950, .text-slate-900, .text-slate-800,
+  [class~="text-[#171717]"], [class~="text-[#1D1B18]"],
+  [class~="text-[#0F172A]"], [class~="text-[#191919]"],
+  [class~="text-[#4E4A43]"], [class~="text-[#39352F]"]
+) { color: var(--dashboard-text); }
+
+.dark .dashboard-theme :is(
+  .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400,
+  [class~="text-[#6E675C]"], [class~="text-[#7A746A]"],
+  [class~="text-[#6F6A62]"], [class~="text-[#9B9488]"],
+  [class~="text-[#8B8478]"], [class~="text-[#A1988B]"],
+  [class~="text-[#B0A89A]"], [class~="text-[#5F5A52]"],
+  [class~="text-[#5C554A]"], [class~="text-[#60708F]"]
+) { color: var(--dashboard-muted); }
+
+.dark .dashboard-theme :is(
+  [class~="text-[#2F5BFF]"], [class~="text-[#1E63E9]"],
+  [class~="text-[#0E3A8A]"], [class~="text-[#1D3E92]"],
+  [class~="text-[#174EA6]"]
+) { color: #91b7ff; }
+.dark .dashboard-theme :is(
+  [class~="text-[#C6921E]"], [class~="text-[#B8860B]"],
+  [class~="text-[#C58A00]"]
+) { color: #f0c871; }
+.dark .dashboard-theme :is(
+  [class~="text-[#008767]"], [class~="text-[#167C3B]"]
+) { color: #69d9ad; }
+
+.dark .dashboard-theme :is(
+  .border-slate-100, .border-slate-200, .border-slate-300,
+  [class~="border-[#E9E1D2]"], [class~="border-[#EEE7D9]"],
+  [class~="border-[#E4D8C2]"], [class~="border-[#ECE7DB]"],
+  [class~="border-[#F0E9DC]"], [class~="border-[#E7E0D3]"],
+  [class~="border-[#DDE7F2]"], [class~="border-[#D9D0C1]"],
+  [class~="border-[#E7DED0]"], [class~="border-[#BFD0FF]"]
+) { border-color: var(--dashboard-border); }
+
+.dark .dashboard-theme :is(input, textarea, select) {
+  color: var(--dashboard-text);
+  caret-color: var(--dashboard-text);
+}
+.dark .dashboard-theme :is(input, textarea, select)::placeholder {
+  color: var(--dashboard-muted);
+}
+.dark .dashboard-theme :is(input, textarea, select):not([class*="bg-"]) {
+  background-color: var(--dashboard-raised);
+  border-color: var(--dashboard-border);
+}
+.dark .dashboard-theme :is(.from-white, [class~="from-[#F8FAFC]"], .from-slate-50) {
+  --tw-gradient-from: var(--dashboard-raised);
+}
+.dark .dashboard-theme :is(.to-white, [class~="to-[#FBFAF7]"], [class~="to-[#EEF4FF]"]) {
+  --tw-gradient-to: var(--dashboard-surface);
+}
+
+@media print {
+  .dark .dashboard-theme { color-scheme: light; }
+}

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  Moon,
+  Sun,
   LogOut,
   Menu,
   UserRound,
@@ -13,10 +15,17 @@ import {
 } from "lucide-react";
 
 import { useLayoutData } from "./context/LayoutDataContext";
+import { useTheme } from "next-themes";
 
 export default function Topbar() {
   const { user, notifications } = useLayoutData();
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
+  const themeReady = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] =
     useState(false);
@@ -100,13 +109,16 @@ export default function Topbar() {
   }
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem("estrela.dismissedNotifications");
-      const parsed = saved ? JSON.parse(saved) : [];
-      setDismissedNotifications(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setDismissedNotifications([]);
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = window.localStorage.getItem("estrela.dismissedNotifications");
+        const parsed = saved ? JSON.parse(saved) : [];
+        setDismissedNotifications(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setDismissedNotifications([]);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   return (
@@ -158,6 +170,17 @@ export default function Topbar() {
           />
 
         </div>
+
+        <button
+          type="button"
+          aria-label={themeReady && resolvedTheme === "dark" ? "Ativar modo claro" : "Ativar modo escuro"}
+          title={themeReady && resolvedTheme === "dark" ? "Modo claro" : "Modo escuro"}
+          aria-pressed={themeReady && resolvedTheme === "dark"}
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          className="flex h-12 w-12 items-center justify-center rounded-full text-slate-800 transition hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 xl:h-[58px] xl:w-[58px]"
+        >
+          {themeReady && resolvedTheme === "dark" ? <Sun size={25} /> : <Moon size={25} />}
+        </button>
 
         <div className="relative">
           <button
