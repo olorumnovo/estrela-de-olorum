@@ -258,7 +258,6 @@ export default function WhatsappChargeTemplatesForm({
           <p className="mt-1 text-sm text-slate-600">{loadingState ? "Consultando estado..." : enabled ? "Ativa — mensagens bloqueadas para edição" : "Pausada — você pode editar as mensagens"}</p>
           <p className="mt-1 text-xs text-slate-500">Um envio por vez, entre 09h e 18h (São Paulo). A fila manual continua funcionando mesmo se a cobrança automática estiver pausada.</p>
           {nextSendAt && <p className="mt-1 text-xs font-semibold text-slate-700">Próxima tentativa permitida: {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(nextSendAt))} (horário de São Paulo). Com intervalo de {intervalMinutes} minutos, a fila pode levar mais tempo para terminar.</p>}
-          <p className="mt-1 text-xs text-amber-700">Agendamento externo: configure uma chamada GET autenticada a cada 5 minutos no cron-job.org.</p>
         </div>
         <button type="button" onClick={() => void changeAutomation()} disabled={loadingState || changingState}
           className={`rounded-full px-5 py-3 text-sm font-semibold text-white disabled:opacity-50 ${enabled ? "bg-amber-700" : "bg-emerald-700"}`}>
